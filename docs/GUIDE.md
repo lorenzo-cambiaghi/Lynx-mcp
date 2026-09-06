@@ -701,7 +701,7 @@ Minimum useful config (single source):
 |---|---|
 | `config_version` | **Required.** Must be `2`. Use `lynx migrate-config` to upgrade an older config. |
 | `storage_path` | Where per-source ChromaDB folders live (each at `<storage_path>/<source_name>/`). Relative paths are resolved against the config file's directory. Default `./rag_storage`. |
-| `loading_timeout_seconds` | Max time to wait for the first index build before MCP tool calls give up. Default `600`. |
+| `loading_timeout_seconds` | The handshake never waits for the indexes: they open in the background and a tool call that arrives earlier answers with the loading state after at most 20 seconds (`LYNX_TOOL_WAIT_SECONDS`). Past this many seconds of loading, that answer adds a warning, because a first-run build of a large repository can take minutes. Default `600`. |
 | `embedding.model_name` | A HuggingFace repo that ships an ONNX export (`onnx/model.onnx`): the BGE family (`BAAI/bge-small-en-v1.5`, `bge-base-en-v1.5`, `bge-m3`), `sentence-transformers/all-MiniLM-L6-v2`, or a local folder exported with `optimum-cli export onnx`. Changing this invalidates all existing vectors across every source; see [Config drift detection](#config-drift-detection). |
 | `tools.profile` | `core`, `standard` (default) or `full`: which MCP tools `lynx serve` registers. `tools.include` / `tools.exclude` add or remove single tools by name. See [Tool profiles](#tool-profiles). |
 | `search.default_top_k` | Default number of chunks the `search` tool returns when `top_k` is not passed. |
@@ -1125,6 +1125,15 @@ All snippets below assume the package is installed (`pip install -e .` from
 the repo, or eventually `pip install lynx-mcp`) and that you
 have a `config.json` somewhere on disk.
 
+> **Startup.** `lynx serve` answers `initialize` in about a second; the
+> embedding model, the Chroma stores, the BM25 corpora and the graph open in
+> a background thread. A tool call that arrives before they are ready waits
+> up to 20 seconds, then answers with what is happening ("still opening its
+> indexes (opening 2 sources, 7s so far). Retry this call in a few seconds.")
+> so the agent retries instead of the client timing out. On a first run,
+> when the index does not exist yet, that is how you see the build progress
+> from inside the client; `lynx build` beforehand avoids the wait entirely.
+>
 > **Passing the config.** An MCP client launches the server from an
 > unpredictable working directory, so always pass `--config` with an
 > absolute path. Replace `C:/path/to/config.json` in every snippet with

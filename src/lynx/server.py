@@ -25,7 +25,6 @@ comment by `_REAL_STDOUT_FD` for why.
 import os
 import sys
 import warnings
-import threading
 from typing import Annotated
 
 # Silence EVERYTHING before any library writes to stdout/stderr.
@@ -39,8 +38,11 @@ warnings.filterwarnings("ignore")
 # (llama_index prints "LLM is explicitly disabled. Using MockLLM.";
 # onnxruntime and huggingface_hub log the model load; etc.). In MCP stdio mode,
 # stdout is the JSON-RPC channel and any spurious byte breaks the protocol
-# and freezes tool calls. We save the real fd 1 and redirect it to fd 2 for
-# the entire import/loading phase, then restore it just before mcp.run().
+# and freezes tool calls. We save the real fd 1 and point fd 1 at fd 2 for the
+# whole life of the process: the indexes open in a background thread while the
+# client is already talking to us, so there is no moment after which stray
+# prints would be safe. The transport alone writes to the saved descriptor
+# (see `_run_stdio`).
 _REAL_STDOUT_FD = os.dup(1)
 os.dup2(2, 1)
 
@@ -104,13 +106,26 @@ _ExtensionsArg = Annotated[list[str] | None, Field(description=_param("*.extensi
 _PathContainsArg = Annotated[str | None, Field(description=_param("*.path_contains"))]
 
 
-def _restore_real_stdout():
-    """Restore fd 1 to the real stdout, draining the Python buffer first."""
-    try:
-        sys.stdout.flush()
-    except Exception:
-        pass
-    os.dup2(_REAL_STDOUT_FD, 1)
+def _run_stdio(mcp) -> None:
+    """Serve JSON-RPC on the real stdout while fd 1 stays pointed at stderr.
+
+    The SDK's `stdio_server` writes to `sys.stdout` by default; we hand it a
+    text stream on the descriptor saved at import instead, so a library that
+    prints during the background load cannot corrupt the channel."""
+    import io
+    import anyio
+    from mcp.server.stdio import stdio_server
+
+    raw = os.fdopen(_REAL_STDOUT_FD, "wb", buffering=0, closefd=False)
+    real_stdout = io.TextIOWrapper(raw, encoding="utf-8", write_through=True)
+
+    async def _main():
+        async with stdio_server(stdout=anyio.wrap_file(real_stdout)) as (read, write):
+            await mcp._mcp_server.run(
+                read, write, mcp._mcp_server.create_initialization_options(),
+            )
+
+    anyio.run(_main)
 
 
 # ----------------------------------------------------------------------
@@ -246,6 +261,10 @@ def _build_instructions(manager, tools=None, profile: str | None = None) -> str:
                 f"not loaded: {', '.join(hidden)}. They come with "
                 "`lynx serve --profile full` or `tools.include` in config.json. "
             )
+    parts.append(
+        "Indexes open in the background right after this handshake; a call that "
+        "arrives earlier answers with the loading state, so retry it. "
+    )
     parts.append("Read the `lynx://guide` resource for the full playbook. ")
     if has("feedback"):
         parts.append("If you cannot find what you need, call `feedback` before giving up.")
@@ -434,8 +453,14 @@ def _register_global_tools(mcp, manager):
 
     @mcp.tool(name="list_sources", description=_tool_desc("list_sources"), annotations=_ANN_READ)
     def list_sources() -> str:
+        # Like every other tool, answer with text on failure: while the
+        # indexes are still opening, that text is the loading state.
+        try:
+            statuses = manager.list_sources()
+        except Exception as e:
+            return f"Error: {e}"
         lines = [f"Sources ({len(manager.backends)}):"]
-        for status in manager.list_sources():
+        for status in statuses:
             line = (
                 f"  - {status['name']} (type: {status['type']}, "
                 f"chunks: {status.get('chunk_count', 'n/a')})"
@@ -843,58 +868,25 @@ def _slim_tool_schemas(mcp) -> None:
 
 
 def run_server(config_path=None, profile: str | None = None):
-    """Boot the MCP server. Blocks on mcp.run() until the client disconnects."""
+    """Boot the MCP server. Blocks until the client disconnects.
+
+    The handshake does not wait for the indexes. Everything it needs (which
+    sources exist, their type, whether the graph or git is on) is in the
+    config, so the tools are registered against a `ManagerHandle` built from
+    the config alone, the transport starts within a second, and the real
+    `SourceManager` is constructed in a background thread. A tool call that
+    arrives before the indexes are open waits a bounded time, then answers
+    with the loading state and asks to be retried (see `startup.py`)."""
     config = load_config(config_path=config_path)
     try:
         profile_name = resolve_profile(config, profile)
     except ToolProfileError as e:
         print(f"[server] FATAL: {e}", file=sys.stderr)
         sys.exit(2)
-    state = {
-        "manager": None,
-        "ready": threading.Event(),
-        "error": None,
-    }
 
-    def _load_background():
-        try:
-            # Decide HF offline mode BEFORE the heavy imports freeze the
-            # env flags (see configure_hf_offline for the full rationale).
-            from .config import configure_hf_offline
-            configure_hf_offline(config)
-            from .source_manager import SourceManager
-            mgr = SourceManager(config)
-            state["manager"] = mgr
-        except Exception as e:
-            state["error"] = str(e)
-            state["ready"].set()
-            return
-
-        try:
-            mgr.start_watchers()
-        except Exception as e:
-            print(f"[server] failed to start watchers: {e}", file=sys.stderr)
-        state["ready"].set()
-
-    threading.Thread(target=_load_background, daemon=True).start()
-
-    # Wait for the manager to load before opening the JSON-RPC transport.
-    # Any spurious print() during model load (llama_index's MockLLM warning,
-    # onnxruntime / huggingface_hub logs) lands on stderr because fd 1 is redirected.
-    state["ready"].wait(timeout=config.loading_timeout_seconds)
-
-    if state["error"] is not None:
-        print(f"[server] FATAL: source manager failed to load: {state['error']}", file=sys.stderr)
-        sys.exit(1)
-    if state["manager"] is None:
-        print(
-            "[server] FATAL: source manager did not load within "
-            f"{config.loading_timeout_seconds}s (loading_timeout_seconds in config).",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    manager = state["manager"]
+    from .startup import ManagerHandle, start_loader
+    manager = ManagerHandle(config)
+    start_loader(config, manager)
 
     # The tool set is decided before FastMCP exists, because the handshake
     # `instructions` are passed to its constructor and must name only the
@@ -955,9 +947,10 @@ def run_server(config_path=None, profile: str | None = None):
         file=sys.stderr,
     )
 
-    # Loading phase done: restore fd 1 and start the transport.
-    _restore_real_stdout()
-    mcp.run()
+    # Talk to the client now; the loader thread fills in the indexes.
+    print("[server] answering the MCP handshake; indexes open in the background",
+          file=sys.stderr)
+    _run_stdio(mcp)
 
 
 if __name__ == "__main__":

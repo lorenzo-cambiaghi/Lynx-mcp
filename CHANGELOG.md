@@ -30,6 +30,27 @@ equal to what the server actually registers.
 
 ### Changed
 
+The MCP handshake no longer waits for the indexes. `lynx serve` used to open
+every index (model, Chroma stores, BM25 corpora, graph, the integrity probe)
+before reading the first byte of JSON-RPC: about 10 seconds with two indexes,
+and on a first run the whole build. Claude Code gives a server 30 seconds to
+answer `initialize` and then reports it dead, so a first run inside a client
+could not work at all. Now the tools are registered against a preview of the
+sources built from the config alone (type, path, graph and git flags are all
+there), the transport starts within a second, and the real manager is built
+in a background thread. A tool call that arrives early waits up to 20 seconds
+(`LYNX_TOOL_WAIT_SECONDS`), then answers with the loading state and asks to
+be retried; a failed load answers with the error and a `doctor` hint instead
+of a server that exits before saying why. The handshake instructions carry
+one sentence about this so the model knows to retry. Measured from process
+spawn with two indexes of 523 and 279 MB: `initialize` answered in 1.4 s
+against 10.6 s before. The same two indexes once took 86 s to open on a cold
+machine during these measurements, which no handshake would have survived;
+the client saw the 1.4 s handshake and a loading message on each call until
+the first search came back. Stdout stays pointed at stderr for the life of the
+process and the transport writes to the saved real descriptor, so a library
+that prints during the background load cannot corrupt the channel.
+
 The embedding model and the optional reranker run on ONNX Runtime instead of
 PyTorch. The index is untouched: same model, and the vectors are the same to
 the sixth decimal on every reference text (cosine 1.000000 against the

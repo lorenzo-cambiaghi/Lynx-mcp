@@ -149,6 +149,8 @@ Everything runs locally: HuggingFace models are downloaded once, then Lynx switc
 
 The models run on ONNX Runtime, so there is no PyTorch in the install: about 460 MB on disk, and a 165 MB download on Linux where the torch wheel alone used to bring 4 GB of CUDA libraries. Same model, same vectors, so an index built by an earlier version keeps working.
 
+The server answers the MCP handshake in about a second and opens the indexes in the background. A call that arrives before they are open waits briefly, then comes back with the loading state so the agent can retry, instead of the client giving up on a server that is still busy.
+
 Open as many sessions on one index as you like: two editor windows, an editor plus the web UI, a CLI query while the server runs. They all search the same index. Only indexing is exclusive, and the process doing it hands over automatically if you close it.
 
 ### Restricted networks / air-gapped machines
