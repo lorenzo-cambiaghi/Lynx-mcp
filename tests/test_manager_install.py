@@ -52,11 +52,17 @@ def _make_args(**kw):
 
 
 def _seed_fake_model_cache(cache_dir: Path, model="BAAI/bge-small-en-v1.5") -> Path:
-    """Create a minimal HF hub cache entry for `model` and return its dir."""
+    """Create a minimal HF hub cache entry for `model` and return its dir.
+
+    "Minimal" means what the ONNX runtime opens (the graph and the
+    tokenizer), because that is what the cache probe checks: a snapshot with
+    only `config.json` counts as not cached, on purpose."""
     safe = model.replace("/", "--")
     snap = cache_dir / f"models--{safe}" / "snapshots" / "abc123"
-    snap.mkdir(parents=True, exist_ok=True)
+    (snap / "onnx").mkdir(parents=True, exist_ok=True)
     (snap / "config.json").write_text("{}", encoding="utf-8")
+    (snap / "tokenizer.json").write_text("{}", encoding="utf-8")
+    (snap / "onnx" / "model.onnx").write_bytes(b"graph")
     return cache_dir / f"models--{safe}"
 
 
@@ -147,7 +153,7 @@ def main() -> int:
 
         def fake_snapshot(repo_id, **kwargs):
             captured["repo_id"] = repo_id
-            captured["ignore_patterns"] = kwargs.get("ignore_patterns")
+            captured["allow_patterns"] = kwargs.get("allow_patterns")
             captured["HF_HUB_OFFLINE"] = os.environ.get("HF_HUB_OFFLINE")
             captured["TRANSFORMERS_OFFLINE"] = os.environ.get("TRANSFORMERS_OFFLINE")
             return "/fake/path"
@@ -160,10 +166,14 @@ def main() -> int:
         if captured.get("repo_id") != "test/model":
             print(f"[test] FAIL [6/10]: wrong repo_id: {captured}")
             return 6
-        # Unused heavy formats must be excluded from the download.
-        ip = captured.get("ignore_patterns") or []
-        if not any("onnx" in p for p in ip) or not any("h5" in p for p in ip):
-            print(f"[test] FAIL [6/10]: ignore_patterns missing onnx/tf: {ip}")
+        # Only the files the ONNX runtime opens are downloaded: the graph and
+        # the tokenizer, never the PyTorch / TF / Flax weights.
+        ap = captured.get("allow_patterns") or []
+        if "onnx/model.onnx" not in ap or "tokenizer.json" not in ap:
+            print(f"[test] FAIL [6/10]: allow_patterns missing runtime files: {ap}")
+            return 6
+        if any(p.endswith((".safetensors", ".bin", ".h5")) or p.startswith("*") for p in ap):
+            print(f"[test] FAIL [6/10]: allow_patterns is not a plain runtime whitelist: {ap}")
             return 6
         # During the call, both flags must be unset
         if captured.get("HF_HUB_OFFLINE") is not None:
@@ -416,8 +426,10 @@ def main() -> int:
             (mdir / "blobs").mkdir(parents=True)
             (mdir / "blobs" / "deadbeef").write_text("BIGWEIGHTS", encoding="utf-8")
             snap = mdir / "snapshots" / "rev1"
-            snap.mkdir(parents=True)
+            (snap / "onnx").mkdir(parents=True)
             (snap / "config.json").write_text("{}", encoding="utf-8")
+            (snap / "tokenizer.json").write_text("{}", encoding="utf-8")
+            (snap / "onnx" / "model.onnx").write_bytes(b"graph")
             (mdir / "refs").mkdir()
             (mdir / "refs" / "main").write_text("rev1", encoding="utf-8")
 

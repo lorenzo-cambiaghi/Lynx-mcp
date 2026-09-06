@@ -1,35 +1,34 @@
-"""Cross-encoder reranker for hybrid search results.
+"""Cross-encoder reranker for hybrid search results, on ONNX Runtime.
 
 Hybrid RRF fusion is fast and works well on average, but it ranks based
 only on the rank position of each chunk in the two retrievers (dense and
-sparse) — it never *looks* at the chunk content vs the query. A
-cross-encoder model takes (query, chunk_content) as a pair and emits a
-relevance score that does inspect the content, fixing many "the top
-result is technically relevant but not the best answer" failures of
-pure RRF.
+sparse). It never *looks* at the chunk content against the query. A
+cross-encoder takes (query, chunk_content) as a pair and emits a relevance
+score that does inspect the content, fixing many "the top result is
+technically relevant but not the best answer" failures of pure RRF.
 
-We use `cross-encoder/ms-marco-MiniLM-L-6-v2` by default (~80MB, ~50ms
-per query on CPU for 30 candidate chunks). It's the standard small-and-
-fast reranker; bigger ones improve quality marginally at 5-10× cost.
+The default is `cross-encoder/ms-marco-MiniLM-L-6-v2` (91 MB as an ONNX
+graph, tens of milliseconds per query on CPU for 30 candidates). It is the
+standard small-and-fast reranker; bigger ones improve quality marginally
+at 5-10x the cost. Any cross-encoder whose repo ships `onnx/model.onnx`
+works; see `model_files.py` for how a model is resolved.
 
 Design notes:
-  - **Lazy model load.** The 80MB download + RAM allocation happens on
-    the first `rerank()` call, not at `__init__`. Users with reranker
-    disabled pay zero cost; users with it enabled but never querying
-    pay zero cost too.
-  - **Preserves all result fields.** We only modify `score` (and stash
-    the original RRF score as `original_score` for debugging).
-  - **Chunk truncation.** Cross-encoders have a hard token limit (~512
-    for MiniLM). We feed the first `max_length` characters of the
-    chunk; on dense scientific text this is roughly the same as feeding
-    the first ~500 tokens.
-  - **Lazy import** of `sentence_transformers` so importing
-    `lynx.reranker` doesn't pull in torch when nobody asks for it.
+  - **Lazy model load.** The download and the session creation happen on
+    the first `rerank()` call, not at `__init__`. Users with the reranker
+    disabled pay nothing; users with it enabled but never querying, the same.
+  - **Preserves all result fields.** Only `score` changes (the RRF score is
+    kept as `original_score`).
+  - **Chunk truncation.** Cross-encoders have a hard token limit (512 for
+    MiniLM). We cut the chunk to `max_input_chars` first, then let the
+    tokenizer truncate the *document* side of the pair, never the query.
+  - **Lazy imports.** `onnxruntime`, `tokenizers` and `numpy` are imported
+    inside the loader, so importing `lynx.reranker` stays free.
 """
 from __future__ import annotations
 
 import sys
-from typing import Optional
+from typing import List, Optional
 
 
 def _log(msg: str) -> None:
@@ -43,17 +42,62 @@ def _log(msg: str) -> None:
 DEFAULT_RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 # Chars (not tokens) to feed the cross-encoder. The MiniLM tokenizer
-# rounds about 4 chars to 1 token, so 1600 chars ≈ 400 tokens, comfortably
-# below the model's 512-token context window after the query is prepended.
+# rounds about 4 chars to 1 token, so 1600 chars is about 400 tokens,
+# comfortably below the model's 512-token window after the query is prepended.
 DEFAULT_MAX_INPUT_CHARS = 1600
 
 
-class Reranker:
-    """Wraps a `CrossEncoder` and applies it to a list of search results.
+class _CrossEncoderRuntime:
+    """A loaded cross-encoder: pair tokenizer + ONNX session + activation."""
 
-    Stateless w.r.t. queries — instantiate once per source, call
-    `rerank()` once per search. The underlying model is loaded the first
-    time `rerank()` runs, not in `__init__`.
+    def __init__(self, model_name: str) -> None:
+        from tokenizers import Tokenizer
+        from .embeddings import make_session, read_max_length, read_pad_token
+        from .model_files import resolve_model_files
+
+        files = resolve_model_files(model_name)
+        self.tokenizer = Tokenizer.from_file(str(files.tokenizer_path))
+        max_length = read_max_length(files)
+        # Truncate the document side only: the query must survive whole.
+        self.tokenizer.enable_truncation(max_length, strategy="only_second")
+        pad_token, pad_id = read_pad_token(files, self.tokenizer)
+        self.tokenizer.enable_padding(pad_id=pad_id, pad_token=pad_token)
+
+        self.session = make_session(files.onnx_path)
+        self.input_names = tuple(i.name for i in self.session.get_inputs())
+        self.output_name = self.session.get_outputs()[0].name
+
+        # sentence-transformers applies a sigmoid to single-logit models unless
+        # the repo config says otherwise; the ms-marco models say Identity, and
+        # their raw logits (roughly -11..+10) are what Lynx documented as the
+        # reranked `score`. Reproduce that rule so scores keep their scale.
+        cfg = files.read_json("config.json") or {}
+        activation = str(cfg.get("sbert_ce_default_activation_function", ""))
+        self.apply_sigmoid = "Sigmoid" in activation
+
+    def predict(self, pairs: List[tuple]) -> List[float]:
+        import numpy as np
+        from .embeddings import build_feed
+
+        encodings = self.tokenizer.encode_batch(pairs)
+        feed = build_feed(self.input_names, encodings)
+        (logits,) = self.session.run([self.output_name], feed)
+        logits = np.asarray(logits, dtype=np.float32)
+        if logits.ndim == 2:
+            # [batch, 1] for a regression head; take the last column for the
+            # rare 2-class head (its "relevant" logit).
+            logits = logits[:, -1]
+        if self.apply_sigmoid:
+            logits = 1.0 / (1.0 + np.exp(-logits))
+        return [float(x) for x in logits]
+
+
+class Reranker:
+    """Applies a cross-encoder to a list of search results.
+
+    Stateless w.r.t. queries: instantiate once per source, call `rerank()`
+    once per search. The underlying model is loaded the first time
+    `rerank()` runs, not in `__init__`.
     """
 
     def __init__(
@@ -64,32 +108,18 @@ class Reranker:
         max_input_chars: int = DEFAULT_MAX_INPUT_CHARS,
     ):
         self.model_name = model_name
+        # Kept for callers that still pass it; the runtime is CPU-only.
         self.device = device
         self.max_input_chars = int(max_input_chars)
-        # `_model` stays None until the first rerank() call. We don't
-        # type-annotate it as CrossEncoder because the import is lazy.
-        self._model = None
+        self._model: Optional[_CrossEncoderRuntime] = None
 
     def _ensure_loaded(self) -> None:
-        """Load the cross-encoder on demand.
-
-        Raises ImportError with an actionable message if sentence-
-        transformers isn't installed (shouldn't happen — it's a hard
-        dependency declared in pyproject — but defensive coding never
-        hurts on a feature that ships as `enabled=false` by default).
-        """
+        """Load the cross-encoder on demand (download included, when the
+        model is not cached yet and the hub is reachable)."""
         if self._model is not None:
             return
-        try:
-            from sentence_transformers import CrossEncoder
-        except ImportError as e:
-            raise ImportError(
-                "Reranker requires 'sentence-transformers'. Install with "
-                "`pip install sentence-transformers` (it should already be "
-                "pulled in by llama-index-embeddings-huggingface)."
-            ) from e
-        _log(f"[reranker] loading model {self.model_name!r} (device={self.device}) — first use")
-        self._model = CrossEncoder(self.model_name, device=self.device)
+        _log(f"[reranker] loading model {self.model_name!r} (ONNX Runtime, CPU) on first use")
+        self._model = _CrossEncoderRuntime(self.model_name)
 
     def rerank(self, query: str, results: list, top_k: Optional[int] = None) -> list:
         """Rerank `results` by cross-encoder relevance and return top_k.
@@ -97,7 +127,7 @@ class Reranker:
         Each result dict keeps every field (file, content, symbol_name,
         etc.). The reranker:
           - replaces `score` with the cross-encoder score (a float in
-            roughly [-10, 10] for MS-MARCO models — NOT comparable to
+            roughly [-11, 10] for MS-MARCO models, NOT comparable to
             the RRF scale)
           - sets `original_score` to the previous value, so callers can
             tell whether a result moved up or down
@@ -114,10 +144,10 @@ class Reranker:
         if n == 0 or n == 1:
             return results
 
-        # Loading can fail too (model not in HF cache + offline mode,
-        # bad model name, torch OOM, etc.). Treat it the same as a
-        # predict failure: log + return original ranking so search
-        # still works.
+        # Loading can fail too (model not in HF cache + offline mode, bad
+        # model name, no ONNX export in the repo). Treat it the same as a
+        # predict failure: log + return original ranking so search still
+        # works.
         try:
             self._ensure_loaded()
         except Exception as e:
@@ -129,7 +159,7 @@ class Reranker:
             scores = self._model.predict(pairs)
         except Exception as e:
             # Don't break search if the model fails. Log and keep the
-            # original ranking — users still get usable results.
+            # original ranking so users still get usable results.
             _log(f"[reranker] predict failed ({e}); falling back to original ranking")
             return results[:top_k] if top_k is not None else results
 

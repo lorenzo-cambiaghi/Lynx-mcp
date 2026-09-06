@@ -132,16 +132,27 @@ def check_hf_model_cache(model_name: str, label: str = "embedding model") -> Che
                 "Re-download via `lynx manager install --model`.",
             ],
         )
-    # Pick the first snapshot dir and check for the critical files.
-    first_snapshot = next(snapshots.iterdir())
-    required = ("config.json",)  # the bare minimum for sentence-transformers
-    missing = [f for f in required if not (first_snapshot / f).exists()]
-    if missing:
+    # Any snapshot with the files the ONNX runtime opens makes the model
+    # usable. Otherwise report what the first one lacks: an install older
+    # than 1.9 left only the PyTorch weights here, which are no longer read.
+    from ..config import ONNX_GRAPH_CANDIDATES, snapshot_has_runtime_files
+    snapshot_dirs = [s for s in snapshots.iterdir() if s.is_dir()]
+    if not any(snapshot_has_runtime_files(s) for s in snapshot_dirs):
+        first_snapshot = snapshot_dirs[0] if snapshot_dirs else snapshots
+        required = ("config.json", "tokenizer.json")
+        missing = [f for f in required if not (first_snapshot / f).exists()]
+        if not any((first_snapshot / rel).is_file() for rel in ONNX_GRAPH_CANDIDATES):
+            missing.append("onnx/model.onnx")
         return CheckResult(
             name=f"HF cache: {label}",
             status=STATUS_WARN,
             summary=f"{model_name} cache incomplete (missing: {', '.join(missing)})",
-            details=[f"Re-fetch with `lynx manager install --model`."],
+            details=[
+                "Re-fetch with `lynx manager install --model`: it adds the "
+                "missing files to this snapshot. Lynx loads models through "
+                "ONNX Runtime; installs before 1.9 downloaded only the "
+                "PyTorch weights.",
+            ],
         )
     return CheckResult(
         name=f"HF cache: {label}",

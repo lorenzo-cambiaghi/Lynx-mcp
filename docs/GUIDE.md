@@ -280,9 +280,10 @@ Dependencies installed automatically:
 | Package | Why |
 |---|---|
 | `mcp` | The MCP SDK (FastMCP server framework) |
-| `llama-index` | Document loading, chunking, retrieval pipeline |
+| `llama-index-core` | Document loading, chunking, retrieval pipeline |
 | `llama-index-vector-stores-chroma` | Adapter for ChromaDB |
-| `llama-index-embeddings-huggingface` | Local HuggingFace embeddings |
+| `onnxruntime`, `tokenizers` | Run the embedding model (and the optional reranker) on CPU. No PyTorch in the install. |
+| `huggingface_hub` | Fetches the model files into the local HF cache, once |
 | `chromadb` | Persistent vector database (sqlite-backed) |
 | `gitpython` | Optional: detect new commits for the rebuild fallback |
 | `watchdog` | Cross-platform file system events for live updates |
@@ -701,7 +702,7 @@ Minimum useful config (single source):
 | `config_version` | **Required.** Must be `2`. Use `lynx migrate-config` to upgrade an older config. |
 | `storage_path` | Where per-source ChromaDB folders live (each at `<storage_path>/<source_name>/`). Relative paths are resolved against the config file's directory. Default `./rag_storage`. |
 | `loading_timeout_seconds` | Max time to wait for the first index build before MCP tool calls give up. Default `600`. |
-| `embedding.model_name` | Any HuggingFace sentence-transformer model. Changing this invalidates all existing vectors across every source; see [Config drift detection](#config-drift-detection). |
+| `embedding.model_name` | A HuggingFace repo that ships an ONNX export (`onnx/model.onnx`): the BGE family (`BAAI/bge-small-en-v1.5`, `bge-base-en-v1.5`, `bge-m3`), `sentence-transformers/all-MiniLM-L6-v2`, or a local folder exported with `optimum-cli export onnx`. Changing this invalidates all existing vectors across every source; see [Config drift detection](#config-drift-detection). |
 | `search.default_top_k` | Default number of chunks the `search` tool returns when `top_k` is not passed. |
 | `search.mode` | `"hybrid"` (default), `"dense"`, or `"sparse"`. See [Hybrid retrieval](#hybrid-retrieval). |
 | `search.rrf_k` | Reciprocal Rank Fusion constant (default `60`). |
@@ -2263,7 +2264,7 @@ A cross-encoder reranker takes the top-N RRF candidates and feeds each
 `(query, chunk_content)` pair through a small transformer model that does
 read both sides, and scores relevance on the content. On ambiguous queries
 this typically improves precision@1 by 20-30%. The price is a one-time
-~80MB model download and ~50ms of extra latency per query.
+91 MB model download and about 90 ms of extra latency per query on CPU.
 
 ### Enable it
 
@@ -2303,25 +2304,25 @@ Each result keeps every field it had before, plus:
 
 | Item | Cost |
 |---|---|
-| First query after server boot | ~2-3 s (one-time model load) |
-| Every subsequent query | +30-100 ms on CPU |
+| First query after server boot | about 1 s (one-time session load) |
+| Every subsequent query | +30-100 ms on CPU (94 ms measured for 30 candidates) |
 | RAM | ~150 MB while loaded |
-| Disk (HF cache) | ~80 MB |
-| First-ever launch | ~80 MB download from HF |
+| Disk (HF cache) | 91 MB |
+| First-ever launch | 91 MB download from HF |
 
 Disable by setting `enabled: false` (or omit the block). Existing
 indexes are unaffected: the reranker doesn't touch ChromaDB.
 
 ### Other models
 
-Swap `model_name` for a different cross-encoder. Trade-offs:
+Swap `model_name` for a different cross-encoder. The repo must ship an
+ONNX export (`onnx/model.onnx`), like the embedding model; these do:
 
-| Model | Size | Quality | Latency |
+| Model | ONNX size | Quality | Latency |
 |---|---|---|---|
-| `cross-encoder/ms-marco-MiniLM-L-6-v2` (default) | ~80 MB | Good | ~50 ms / 30 docs |
-| `cross-encoder/ms-marco-MiniLM-L-12-v2` | ~140 MB | Better | ~90 ms / 30 docs |
-| `BAAI/bge-reranker-base` | ~280 MB | Best general-purpose | ~200 ms / 30 docs |
-| `BAAI/bge-reranker-large` | ~1.1 GB | Strongest | ~700 ms / 30 docs |
+| `cross-encoder/ms-marco-MiniLM-L-6-v2` (default) | 91 MB | Good | ~90 ms / 30 docs |
+| `cross-encoder/ms-marco-MiniLM-L-12-v2` | ~130 MB | Better | ~2x the default |
+| `BAAI/bge-reranker-base` | 1.1 GB | Best general-purpose | ~10x the default |
 
 For code search specifically, the MiniLM defaults are surprisingly
 competitive. Try them first.
@@ -2837,8 +2838,9 @@ a healthy index answers in about a second, a wedged one never does.
 that answers.
 
 **I want to change the embedding model.**
-Set `embedding.model_name` in `config.json` to any HuggingFace
-sentence-transformer model, then force a full rebuild: different models
+Set `embedding.model_name` in `config.json` to a HuggingFace repo that
+ships an ONNX export (`onnx/model.onnx`; the BGE models and all-MiniLM do,
+see the config reference), then force a full rebuild: different models
 produce non-comparable vectors. If you forget, the next start flags a
 CRITICAL drift:
 

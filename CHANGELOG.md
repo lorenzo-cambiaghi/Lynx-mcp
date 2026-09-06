@@ -1,5 +1,49 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+The embedding model and the optional reranker run on ONNX Runtime instead of
+PyTorch. The index is untouched: same model, and the vectors are the same to
+the sixth decimal on every reference text (cosine 1.000000 against the
+previous build, the query instruction BGE models expect included), so an
+existing index keeps working without a rebuild. The three reference searches
+return the same top five with the same scores, and the cross-encoder gives the
+same logits to four decimals.
+
+What changes is the install. `sentence-transformers` brought torch and
+transformers, and on Linux the default torch wheel also brings the CUDA
+libraries, so `pipx install lynx-mcp` downloaded 4.2 GB for a server that only
+ever ran on CPU. With the lockfile regenerated the download is 165 MB on
+Linux and 126 MB on Windows and macOS; the installed tool went from 1.2 GB to
+462 MB on Windows, and the lock lost 30 packages. Importing the server went
+from about 3.2 s to 1.1 s. A cold CLI command on the reference machine, two
+indexes of 523 and 279 MB open, went from 32 to 43 s down to 16 to 17 s; the
+first search after `lynx serve` starts from 7.8 s to 3.9 s. Indexing
+throughput is unchanged (14.2 chunks/s against 13.3 on 200 real C# chunks;
+batches are now grouped by length so padding is not wasted).
+
+The handshake is still not instant. Measured from process spawn, `initialize`
+is answered after 10.6 s with those two indexes: 3.5 s is the out-of-process
+integrity probe, 1.3 s the graph load, 1.1 s the model session, the rest
+Chroma and the BM25 corpus. None of that is the runtime any more, and the next
+step is to answer `initialize` before the indexes are open.
+
+Model files follow the runtime. `lynx manager install --model` downloads what
+the runtime opens, the ONNX graph plus the tokenizer (134 MB for bge-small
+instead of the 267 MB of the two PyTorch formats), and `lynx manager doctor`
+reports a cached model as incomplete when the graph is missing. A cache
+filled by an older install holds the PyTorch weights only, so the first run
+after upgrading stays online long enough to fetch the graph into the same
+snapshot, then goes back offline as before. The archive on the `models`
+GitHub release still carries the old weights until the next tagged release
+republishes it; `--from-archive` against that URL needs the new archive
+first. Any HuggingFace repo that ships `onnx/model.onnx` can be configured
+(the BGE family, `sentence-transformers/all-MiniLM-L6-v2`, the ms-marco
+cross-encoders); a model without one is refused with a message that names
+the file and the export command.
+
 ## 1.8.0 — 2026-09-03
 
 ### Added

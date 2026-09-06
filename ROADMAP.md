@@ -28,9 +28,11 @@ The default stays `bge-small-en-v1.5` (384-dim, ~130 MB, fast on CPU).
 That is what keeps the install light and the on-save re-index near-instant
 without a GPU. For users with more RAM or compute who want higher ranking
 quality, we're considering documenting a vetted step-up preset
-(e.g. `nomic-embed-text-v1.5` or `bge-m3`).
+(e.g. `bge-base-en-v1.5` or `bge-m3`).
 
-- The embedding model is already swappable via `embedding.model_name`.
+- The embedding model is already swappable via `embedding.model_name`,
+  as long as the repo ships the ONNX export Lynx runs (`onnx/model.onnx`;
+  the BGE family does, `nomic-embed-text-v1.5` does not in its main repo).
   This would only recommend an alternative and document the trade-offs.
 - Changing the model means a full reindex (different vector
   space), and bigger models are slower on CPU and produce larger indexes.

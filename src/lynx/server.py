@@ -37,7 +37,7 @@ warnings.filterwarnings("ignore")
 
 # CRITICAL for MCP: some libraries write to stdout during import/init
 # (llama_index prints "LLM is explicitly disabled. Using MockLLM.";
-# sentence_transformers logs the model load; etc.). In MCP stdio mode,
+# onnxruntime and huggingface_hub log the model load; etc.). In MCP stdio mode,
 # stdout is the JSON-RPC channel and any spurious byte breaks the protocol
 # and freezes tool calls. We save the real fd 1 and redirect it to fd 2 for
 # the entire import/loading phase, then restore it just before mcp.run().
@@ -966,7 +966,7 @@ def run_server(config_path=None):
 
     # Wait for the manager to load before opening the JSON-RPC transport.
     # Any spurious print() during model load (llama_index's MockLLM warning,
-    # sentence_transformers logs) lands on stderr because fd 1 is redirected.
+    # onnxruntime / huggingface_hub logs) lands on stderr because fd 1 is redirected.
     state["ready"].wait(timeout=config.loading_timeout_seconds)
 
     if state["error"] is not None:

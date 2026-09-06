@@ -52,7 +52,7 @@ from llama_index.core.schema import TextNode
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core import StorageContext
 from llama_index.core import Settings
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from .embeddings import OnnxEmbedding
 from rank_bm25 import BM25Okapi
 from pathlib import Path
 import json
@@ -222,8 +222,10 @@ def _configure_local_only(embedding_model_name: str):
 
     Must be called BEFORE any operation on the index.
     """
-    # Local embeddings: small open-source model, runs on CPU.
-    Settings.embed_model = HuggingFaceEmbedding(model_name=embedding_model_name)
+    # Local embeddings: a small open model run on CPU through ONNX Runtime
+    # (no PyTorch in the install). One runtime is shared by every source
+    # that uses the same model.
+    Settings.embed_model = OnnxEmbedding(model_name=embedding_model_name)
 
     # LLM = None: we don't want LlamaIndex to ever call a remote LLM.
     # We only use the vector retriever (similarity search); the AI client
@@ -302,7 +304,6 @@ class CodebaseRAG:
         # Tri-state cache for batched-query embedding (search_batch):
         #   None  = not yet checked, True = batched path verified to match the
         #   single-query embedding, False = it diverged → use per-query fallback.
-        self._batch_embed_ok = None
 
         # BM25 sparse index, lazily built from chunks living in ChromaDB.
         # _bm25_docs maps chunk_id -> tokenized content; the BM25Okapi object
@@ -1329,58 +1330,20 @@ class CodebaseRAG:
 
     def _embed_queries_batch(self, queries: list) -> list:
         """Embed N queries in one model call, producing the SAME vectors the
-        single-query path (`get_query_embedding`) would — so batch results match
-        `search()` for ANY embedding model, not just the default.
+        single-query path (`get_query_embedding`) would, so batch results match
+        `search()`.
 
-        BGE-style models apply a *query* prompt ("Represent this question for
-        searching…") that `get_query_embedding` adds but `get_text_embedding`
-        does NOT (cosine ~0.92 apart). LlamaIndex's private
-        `_embed(..., prompt_name="query")` is the batched query path. We verify
-        it once against `get_query_embedding` (cosine ≥ 0.999) and, if a model
-        ever embeds queries differently in batch, fall back to per-query for the
-        rest of the session — correctness over speed.
+        BGE-style models prepend a *query* instruction ("Represent this
+        question for searching…") that texts don't get (cosine ~0.92 apart).
+        `OnnxEmbedding.embed_queries` is that path in batch form: same
+        formatting, same graph, one run. Any other embedding model falls back
+        to one call per query.
         """
         embed_model = Settings.embed_model
-
-        def per_query():
-            return [embed_model.get_query_embedding(q) for q in queries]
-
-        if self._batch_embed_ok is False:
-            return per_query()
-
-        embed_fn = getattr(embed_model, "_embed", None)
-        if not callable(embed_fn):
-            self._batch_embed_ok = False
-            return per_query()
-
-        try:
-            vecs = embed_fn(queries, prompt_name="query")
-        except TypeError:
-            try:
-                vecs = embed_fn(queries)  # older signature without prompt_name
-            except Exception:
-                vecs = None
-        except Exception:
-            vecs = None
-        if not vecs:
-            self._batch_embed_ok = False
-            return per_query()
-
-        # One-time correctness check: the batched query vector MUST match the
-        # single-query path, else retrieval would silently diverge.
-        if self._batch_embed_ok is None:
-            ref = embed_model.get_query_embedding(queries[0])
-            a, b = vecs[0], ref
-            dot = sum(x * y for x, y in zip(a, b))
-            na = sum(x * x for x in a) ** 0.5
-            nb = sum(y * y for y in b) ** 0.5
-            cos = dot / (na * nb) if na and nb else 0.0
-            if cos < 0.999:
-                self._batch_embed_ok = False
-                return per_query()
-            self._batch_embed_ok = True
-
-        return vecs
+        batch = getattr(embed_model, "embed_queries", None)
+        if callable(batch):
+            return batch(list(queries))
+        return [embed_model.get_query_embedding(q) for q in queries]
 
     def _dense_lookup(self, query: str, top_n: int, embedding=None) -> list:
         """Pure semantic retrieval via the LlamaIndex / ChromaDB pipeline.

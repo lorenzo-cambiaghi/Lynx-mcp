@@ -606,19 +606,43 @@ def _hf_cache_dir() -> Path:
     return Path.home() / ".cache" / "huggingface" / "hub"
 
 
+# Where a model's ONNX graph may sit inside its folder, in order of preference.
+# Kept here (stdlib only) so `model_files.py`, the doctor and this probe agree.
+ONNX_GRAPH_CANDIDATES = ("onnx/model.onnx", "model.onnx")
+
+
+def snapshot_has_runtime_files(model_dir: Path) -> bool:
+    """True when `model_dir` holds what the ONNX runtime loads: a graph and
+    `tokenizer.json`.
+
+    A snapshot fetched by an install older than 1.9 has the PyTorch weights
+    only. It reports False here, so the next run stays online long enough to
+    fetch the graph into the same snapshot (see `configure_hf_offline`)."""
+    try:
+        if not (model_dir / "tokenizer.json").is_file():
+            return False
+        return any((model_dir / rel).is_file() for rel in ONNX_GRAPH_CANDIDATES)
+    except OSError:
+        return False
+
+
 def _hf_model_cached(model_name: str) -> bool:
-    """True if at least one snapshot of `model_name` exists in the cache.
+    """True if a usable snapshot of `model_name` exists: either a local
+    folder, or an entry in the HF cache with the ONNX graph and tokenizer.
 
     Pure-stdlib directory probe (no huggingface_hub import — see
     `configure_hf_offline` for why importing it here would defeat the
     purpose)."""
+    local = Path(model_name)
+    if local.is_dir():
+        return snapshot_has_runtime_files(local)
     safe = model_name.replace("/", "--")
     snapshots = _hf_cache_dir() / f"models--{safe}" / "snapshots"
     try:
         if not snapshots.is_dir():
             return False
         return any(
-            entry.is_dir() and any(entry.iterdir())
+            entry.is_dir() and snapshot_has_runtime_files(entry)
             for entry in snapshots.iterdir()
         )
     except OSError:

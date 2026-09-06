@@ -14,7 +14,7 @@
 FROM python:3.12-slim
 
 # git: the codebase source uses it for change detection and .gitignore rules.
-# Everything else (tree-sitter parsers, chromadb, torch) ships as wheels.
+# Everything else (tree-sitter parsers, chromadb, onnxruntime) ships as wheels.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
@@ -29,13 +29,6 @@ ENV HF_HOME=/data/hf \
 
 WORKDIR /app
 
-# CPU-only torch FIRST, from PyTorch's CPU wheel index. sentence-transformers
-# pulls torch transitively and, by default, the CUDA build drags in the whole
-# nvidia-*/cuda-toolkit stack (~7GB) that a CPU-only local server never uses.
-# Installing the CPU wheel up front satisfies the dependency, so the next step
-# won't fetch the GPU variant — cutting the image from ~9GB to ~2.5GB.
-RUN pip install --index-url https://download.pytorch.org/whl/cpu torch
-
 # Install Lynx from the source in the build context — this is what Glama builds,
 # so the image always matches the committed code (not a floating PyPI version).
 COPY pyproject.toml README.md LICENSE ./
@@ -48,7 +41,7 @@ RUN pip install .
 #   docker build --build-arg PREFETCH_MODEL=true -t lynx .
 ARG PREFETCH_MODEL=false
 RUN if [ "$PREFETCH_MODEL" = "true" ]; then \
-        python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-en-v1.5')"; \
+        lynx manager install --model BAAI/bge-small-en-v1.5; \
     fi
 
 # Baked default config (indexes /workspace into /data/rag_storage). Mounting

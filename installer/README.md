@@ -74,15 +74,15 @@ above disappear.
 
 ## How it works (thin bootstrapper)
 
-The runtime stack (`torch` + `sentence-transformers` + `chromadb`) weighs
-~1.1 GB, plus a ~130 MB embedding model. Shipping that inside a single
+The runtime stack (`onnxruntime` + `chromadb` + LlamaIndex) weighs about
+470 MB installed, plus a ~130 MB embedding model. Shipping that inside a single
 offline binary would be huge and awkward to sign and distribute. Instead the
 installers are thin: they bundle only the [`uv`](https://docs.astral.sh/uv/)
 binary (~30 MB) and download everything else on first launch.
 
 ```
 download installer  ->  install (instant)  ->  first launch:
-    uv installs lynx (~1 GB, once)  ->  init writes config + downloads model
+    uv installs lynx (~0.5 GB, once)  ->  init writes config + downloads model
     ->  browser opens http://127.0.0.1:8765 (LynxManager UI)
 later launches: UI starts immediately, no download
 ```

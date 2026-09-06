@@ -55,7 +55,17 @@ dependencies = [
     # of a project whose promise is "100% local, no data egress".
     "llama-index-core",
     "llama-index-vector-stores-chroma",
-    "llama-index-embeddings-huggingface",
+    # The embedding model and the optional reranker run on ONNX Runtime with
+    # the Rust tokenizer (`lynx/embeddings.py`, `lynx/reranker.py`). No
+    # PyTorch: on Linux the default torch wheel alone pulls the CUDA libraries,
+    # about 4 GB of download for a CPU-only search server, plus a couple of
+    # seconds of import every time `lynx` starts.
+    # huggingface_hub fetches the model files into the standard HF cache, so
+    # mirrors, offline mode and `--from-archive` keep working unchanged.
+    "onnxruntime>=1.17",
+    "tokenizers>=0.15",
+    "huggingface_hub>=0.23",
+    "numpy>=1.24",
     "chromadb",
     "gitpython",
     "watchdog",
@@ -99,11 +109,6 @@ dependencies = [
     # zero external deps" promise. For richer extraction on multi-column
     # PDFs see the optional `pdf-fast` extra below (pymupdf, AGPL).
     "pypdf>=4.0",
-    # Cross-encoder reranker (optional via config; ~80MB model downloaded
-    # on first use when enabled). Already pulled in transitively by
-    # llama-index-embeddings-huggingface, but we pin it explicitly so the
-    # reranker feature has a documented baseline.
-    "sentence-transformers>=2.7",
     # LynxManager web UI (`lynx manager ui`). uvicorn/starlette/jinja2 are
     # already pulled in by `mcp`; FastAPI is the only direct add — it gives
     # us routing decorators, dependency injection, and request validation
