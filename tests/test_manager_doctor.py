@@ -75,7 +75,12 @@ def main() -> int:
         fake_cache_root.mkdir()
         snapshot = fake_cache_root / "snapshots" / "abc123"
         snapshot.mkdir(parents=True)
+        # Complete means the files the ONNX runtime opens: the graph and the
+        # tokenizer. Until 1.9 a config.json on its own was enough here.
         (snapshot / "config.json").write_text("{}")
+        (snapshot / "tokenizer.json").write_text("{}")
+        (snapshot / "onnx").mkdir()
+        (snapshot / "onnx" / "model.onnx").write_bytes(b"")
 
         from lynx.manager import doctor as doc_module
         original = doc_module._hf_cache_dir_for
