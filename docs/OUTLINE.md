@@ -84,6 +84,26 @@ curl 'http://127.0.0.1:8765/api/v1/search?q=iterate%20over%20the%20response%20co
 curl 'http://127.0.0.1:8765/api/v1/search?q=iterate%20over%20the%20response%20content&top_k=8&view=outline'
 ```
 
+## When to use which
+
+| Use full (default) when | Use outline when |
+|---|---|
+| You'll use the code now: explain, review, or edit a specific area | You're navigating: "where is X / which function does Y" |
+| Few, precise results; you already know roughly what you want | Broad or exploratory queries, or a large `top_k` |
+| The body is the answer (a one-shot question) | Building a mental map, or chaining many searches |
+| | Context budget is tight (large repos, long sessions) |
+
+Rule of thumb for an agent: triage with outline, then pull the one body you
+need, either with a follow-up full search or a direct read of the cited line
+range. `view` is opt-in and the default is unchanged, so Coral and DuckDB
+consumers are unaffected.
+
+```jsonc
+// full          ->  { ..., "content": "<the whole 64-line iter_content method>" }
+// view=outline  ->  { ..., "signature": "def iter_content(self, chunk_size=1, decode_unicode=False)",
+//                         "doc": "Iterates over the response data." }
+```
+
 ## Honest caveats
 
 - Savings scale with body size. Big methods save 60% to 70%; a query that hits

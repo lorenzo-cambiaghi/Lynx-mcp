@@ -30,6 +30,19 @@ equal to what the server actually registers.
 
 ### Changed
 
+The README leads with what grep cannot answer (structure, behaviour, docs past
+the model's cutoff) instead of competing with it on ranking, publishes hit@5
+next to hit@1 and MRR for all three benchmarks, including the two where grep
+ranks higher, and moves the money figures below the measurements. The savings
+calculator (CLI and page) counts the saved round trip's context at the
+prompt-cache price (`--cache-read-discount`, default 10%) instead of the full
+input price; for 25 engineers that is $17,000 to $27,000 a year on a $10
+model, where the old chart said $85,000 to $95,000. The three SQL integrations
+and the offline-install recipes moved to their own pages. The package and
+registry descriptions start with "LynxMCP", the name that search engines can
+tell apart from ByteDance's Lynx and from the lynx browser. The Docker image
+serves the `full` tool profile, so directory scanners list all 17 tools.
+
 The MCP handshake no longer waits for the indexes. `lynx serve` used to open
 every index (model, Chroma stores, BM25 corpora, graph, the integrity probe)
 before reading the first byte of JSON-RPC: about 10 seconds with two indexes,

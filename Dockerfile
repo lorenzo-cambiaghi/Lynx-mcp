@@ -25,7 +25,11 @@ ENV HF_HOME=/data/hf \
     RAG_CONFIG_PATH=/config/config.json \
     PIP_NO_CACHE_DIR=1 \
     PYTHONUNBUFFERED=1 \
-    HF_HUB_DISABLE_TELEMETRY=1
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    LYNX_TOOL_PROFILE=full
+# LYNX_TOOL_PROFILE=full: a container serves many clients and directory
+# scanners (Glama runs this image to list the tools), so it exposes all 17.
+# A desktop install defaults to the 10-tool `standard` profile instead.
 
 WORKDIR /app
 

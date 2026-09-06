@@ -16,12 +16,15 @@ Two figures, both reported, so the claim is honest:
     tool output Lynx hands back per query (Django benchmark: 4,150 -> 1,725
     tokens to answer, -58%). No modelling of context size or round-trips.
 
-  - REALISTIC (one stated assumption): grep needs at least one extra tool
-    round-trip to get the code into context (search, THEN read the file), and
-    every round-trip re-bills the entire growing conversation. Eliminating one
-    round-trip therefore also saves ~one whole context window of input tokens.
-    That context size is the single knob (`--avg-context-tokens`); everything
-    else stays measured.
+  - WITH THE SAVED ROUND TRIP (one stated assumption): grep needs at least one
+    extra tool round-trip to get the code into context (search, THEN read the
+    file), and every round-trip re-sends the whole conversation. Removing one
+    round-trip therefore also saves one context window of input tokens. That
+    context is re-read from the prompt cache, which both providers bill at a
+    fraction of the input price, so the saving is `--avg-context-tokens` x
+    `--cache-read-discount` (defaults: 20,000 tokens at 10%, i.e. 2,000 tokens
+    at full price). Those two knobs are the only modelled assumption;
+    everything else stays measured.
 
 Two config files, both editable, nothing else to touch:
   - `benchmarks/pricing.json`  — model prices ($/1M, input side, as of 2026-06).
@@ -113,8 +116,12 @@ def main() -> int:
     ap.add_argument("--work-days-month", type=int, default=21,
                     help="working days per month (default 21)")
     ap.add_argument("--avg-context-tokens", type=int, default=20000,
-                    help="avg live conversation size re-billed per round-trip, "
-                         "for the realistic figure (default 20,000; set 0 for floor only)")
+                    help="avg live conversation size re-sent per round-trip, "
+                         "for the second figure (default 20,000; set 0 for floor only)")
+    ap.add_argument("--cache-read-discount", type=float, default=0.1,
+                    help="fraction of the input price a cached context re-read costs "
+                         "(default 0.1: both providers bill prompt-cache reads at about "
+                         "a tenth; set 1.0 for no caching)")
     ap.add_argument("--model", default=None,
                     help="restrict the table to one model label from pricing.json")
     ap.add_argument("--input-price", type=float, default=None,
@@ -136,7 +143,9 @@ def main() -> int:
 
     codebases = load_codebases()
     queries_month = args.devs * args.queries_per_dev_day * args.work_days_month
-    ctx = args.avg_context_tokens
+    # The re-read context counts at the cached price: 20k tokens at 10% is
+    # worth 2k tokens at the full input price.
+    ctx = int(round(args.avg_context_tokens * args.cache_read_discount))
 
     print(f"Team: {args.devs} devs x {args.queries_per_dev_day} retrievals/day "
           f"x {args.work_days_month} days = {queries_month:,} retrievals/month")
@@ -148,14 +157,14 @@ def main() -> int:
         tok_floor, tok_real = queries_month * floor_q, queries_month * real_q
         print(f"\n=== {cb['label']} ({cb['language']}): grep {cb['grep']:,} -> Lynx "
               f"{cb['lynx']:,} tokens to answer  ({pct:.0%} fewer)  |  saved/mo "
-              f"floor {tok_floor/1e6:.1f}M  realistic(+{ctx//1000}k) {tok_real/1e6:.1f}M ===")
-        header = f"{'Model':18} {'$/1M in':>8} {'floor $/mo':>11} {'real $/mo':>11} {'real $/yr':>11}"
+              f"floor {tok_floor/1e6:.1f}M  with round trip(+{ctx/1000:.1f}k cached) {tok_real/1e6:.1f}M ===")
+        header = f"{'Model':18} {'$/1M in':>8} {'floor $/mo':>11} {'floor $/yr':>11} {'rt $/mo':>11} {'rt $/yr':>11}"
         print(header)
         print("-" * len(header))
         for name, p in prices.items():
             floor_mo, real_mo = tok_floor / 1e6 * p["in"], tok_real / 1e6 * p["in"]
-            print(f"{name:18} {p['in']:>8.1f} {floor_mo:>11,.0f} {real_mo:>11,.0f} "
-                  f"{real_mo*12:>11,.0f}")
+            print(f"{name:18} {p['in']:>8.1f} {floor_mo:>11,.0f} {floor_mo*12:>11,.0f} "
+                  f"{real_mo:>11,.0f} {real_mo*12:>11,.0f}")
 
     if args.chart:
         cl = [n for n in chart_labels if n in prices] or list(prices)
@@ -169,12 +178,14 @@ _CB_COLORS = ["#e8742c", "#2f81f7", "#1a7f5a", "#a371f7"]
 
 
 def write_chart(out: Path, codebases, prices, chart_labels, queries_month, args) -> None:
-    """Hand-rolled SVG (deterministic, no matplotlib): grouped bars — for each
-    flagship model, one bar per benchmarked codebase showing the *realistic*
-    yearly API bill Lynx removes (the headline figure). Floor is in the CLI
-    table and the footnote; the chart leads with the stronger number."""
+    """Hand-rolled SVG (deterministic, no matplotlib): grouped bars, for each
+    flagship model one bar per benchmarked codebase, showing the yearly API bill
+    Lynx removes when the saved round trip is counted at the cached price. The
+    floor is in the CLI table and in the footnote."""
     INK, SUB, GRID = "#24292f", "#57606a", "#e1e4e8"
-    ctx = args.avg_context_tokens
+    ctx = int(round(args.avg_context_tokens * args.cache_read_discount))
+    ctx_full = args.avg_context_tokens
+    disc = args.cache_read_discount
     models = chart_labels
     # realistic $/yr per (model, codebase)
     def yr(cb, price):
@@ -233,13 +244,13 @@ def write_chart(out: Path, codebases, prices, chart_labels, queries_month, args)
 
     svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" font-family="-apple-system,'Segoe UI',Helvetica,Arial,sans-serif">
   <rect x="0" y="0" width="{W}" height="{H}" rx="12" fill="#ffffff" stroke="#d0d7de"/>
-  <text x="36" y="38" font-size="21" font-weight="800" fill="{INK}">Yearly API bill Lynx removes — {args.devs} engineers</text>
-  <text x="36" y="60" font-size="13" fill="{SUB}">Realistic estimate · 2026-06 flagship input prices · {queries_month:,} retrievals/month</text>
+  <text x="36" y="38" font-size="21" font-weight="800" fill="{INK}">Yearly API bill Lynx removes, {args.devs} engineers</text>
+  <text x="36" y="60" font-size="13" fill="{SUB}">Measured token delta + the saved round trip at the cached price · 2026-06 flagship input prices · {queries_month:,} retrievals/month</text>
   {''.join(legend)}
   {''.join(gridlines)}
   {''.join(bars)}
   {''.join(labels)}
-  <text x="36" y="{H-18}" font-size="10.5" fill="{SUB}">Realistic = measured token delta + one saved grep round-trip ({ctx//1000}k context). Floor (tool output only) in benchmarks/RESULTS*.md.</text>
+  <text x="36" y="{H-18}" font-size="10.5" fill="{SUB}">Per retrieval: measured delta + one saved grep round trip re-reading a {ctx_full//1000}k context from the prompt cache at {disc:.0%} of the input price. Floor (tool output only) in benchmarks/RESULTS*.md.</text>
 </svg>
 '''
     out.parent.mkdir(parents=True, exist_ok=True)

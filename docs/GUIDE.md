@@ -47,9 +47,10 @@ overview and the 3-command install, start from the
 22. [Config drift detection](#config-drift-detection)
 23. [How it works (in 30 seconds)](#how-it-works-in-30-seconds)
 24. [Architecture](#architecture)
-25. [Troubleshooting](#troubleshooting)
-26. [Contributing](#contributing)
-27. [Privacy guarantees](#privacy-guarantees)
+25. [Restricted networks and air-gapped machines](#restricted-networks-and-air-gapped-machines)
+26. [Troubleshooting](#troubleshooting)
+27. [Contributing](#contributing)
+28. [Privacy guarantees](#privacy-guarantees)
 
 ---
 
@@ -2805,6 +2806,64 @@ lynx/
   skipped (no re-read, no re-embed); typical no-op rebuild is ~30× faster
   than a cold one. Snapshot mismatch (embedding model swap, chunker bump,
   extension list change) invalidates the cache and forces a full rebuild.
+
+---
+
+## Restricted networks and air-gapped machines
+
+The embedding model is a public HuggingFace model (`BAAI/bge-small-en-v1.5`,
+about 130 MB); no account or token is required. If you hit `We couldn't connect
+to 'https://huggingface.co'`, the machine can't reach the Hub (firewall, proxy,
+DNS, or an offline box).
+
+You usually don't need to do anything. When the HuggingFace download fails,
+Lynx falls back to a copy of the model hosted on this repo's GitHub Releases
+and installs it from there, including on the installer's first run. You only
+need the steps below if GitHub is also unreachable, or if you want a mirror, a
+shared cache, or your own host.
+
+Point the fallback elsewhere. If you can't reach github.com either but you host
+the archive somewhere reachable (an internal server, an artifact store), set
+the base URL and the automatic fallback uses it:
+
+```bash
+export LYNX_MODEL_ARCHIVE_BASE_URL=https://<your-host>/lynx-models
+# expects <base>/BAAI--bge-small-en-v1.5.zip (produced by --export-archive)
+```
+
+Use a mirror. Point Lynx at a reachable HuggingFace mirror and, optionally, a
+shared cache, then download normally:
+
+```bash
+export HF_ENDPOINT=https://<your-mirror>   # e.g. an internal proxy or hf-mirror.com
+export HF_HOME=/shared/hf-cache            # optional: shared/persistent cache
+lynx manager install --model
+```
+
+Transfer an archive. On a machine with access, export the model, copy the file
+to the offline machine (USB, `scp`, an internal share), then import it:
+
+```bash
+# online machine
+lynx manager install --model
+lynx manager install --export-archive bge-small.zip
+
+# offline machine: a local path or a direct download URL both work
+lynx manager install --from-archive /path/to/bge-small.zip
+lynx manager install --from-archive "https://<host>/bge-small.zip"
+```
+
+A URL only works if it serves the file directly, with no authentication and no
+interstitial page. A GitHub Release asset on a public repo is the easiest
+option; the bundled `Publish model archive` workflow can create one for you.
+Google Drive does not work as a `--from-archive` URL for this model: for files
+larger than about 100 MB Drive returns a "can't scan for viruses" HTML page
+instead of the file, so the import would get HTML, not a zip (Lynx detects
+this and tells you). Use Drive only to hand the file to a person, who
+downloads it in a browser and passes the local path.
+
+`lynx manager doctor` reports the active cache dir, whether a mirror is set,
+and whether the model is present.
 
 ---
 

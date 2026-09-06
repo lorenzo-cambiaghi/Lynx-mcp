@@ -102,6 +102,22 @@ steampipe query "select file, symbol, score from lynx_search where query = '<wha
 steampipe query "select from_symbol, from_file from lynx_graph where operation = 'callers' and symbol = '<YourSymbol>';"
 ```
 
+### Per-row joins
+
+Steampipe pushes `WHERE` quals down and runs a nested loop in joins, so
+`lynx_search` can be driven by another table's column, one search per row.
+That is the per-row fan-out the plan-time engines (Coral, DuckDB) cannot do
+without a batch helper:
+
+```sql
+-- for each of your open GitHub issues, find the code that matches its title
+SELECT i.number, i.title, s.file, s.symbol, s.score
+FROM github_my_issue i
+JOIN lynx_search s ON s.query = i.title
+WHERE i.state = 'open' AND s.source = 'app'
+ORDER BY i.number, s.score DESC;
+```
+
 ## CI & releasing
 
 Two GitHub Actions workflows cover this plugin:

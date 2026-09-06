@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 # unrelated 2014 config library). The import package and the CLI stay `lynx`.
 name = "lynx-mcp"
 version = "1.8.0"
-description = "100% local MCP server for semantic + lexical code search: AST-aware chunking (tree-sitter), hybrid BM25+dense retrieval, optional code knowledge graph."
+description = "LynxMCP: 100% local MCP server for the code questions grep can't answer. Call graph and blast radius, hybrid BM25 + dense code search on ONNX Runtime, library docs and PDFs as sources. No cloud, no PyTorch."
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [
@@ -27,7 +27,12 @@ keywords = [
     "bm25",
     "local",
     "claude",
+    "claude-code",
     "cursor",
+    "call-graph",
+    "code-intelligence",
+    "impact-analysis",
+    "onnx",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

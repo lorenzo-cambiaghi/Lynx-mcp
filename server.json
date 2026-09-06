@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
   "name": "io.github.lorenzo-cambiaghi/lynx",
-  "description": "100% local MCP server for semantic code search: AST chunking, hybrid retrieval, code knowledge graph",
+  "description": "LynxMCP: 100% local MCP server for the code questions grep can't answer: call graph, blast radius, hybrid semantic + lexical search, library docs as sources",
   "repository": {
     "url": "https://github.com/lorenzo-cambiaghi/LynxMCP",
     "source": "github"

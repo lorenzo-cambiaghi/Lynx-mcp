@@ -67,8 +67,10 @@
       <input id="qpd" type="number" min="1" step="5" value="60">
       <label for="days">Working days / month</label>
       <input id="days" type="number" min="1" step="1" value="21">
-      <label for="ctx">Avg conversation size re-billed per saved round-trip (tokens)</label>
+      <label for="ctx">Avg conversation size re-sent per saved round-trip (tokens)</label>
       <input id="ctx" type="number" min="0" step="1000" value="20000">
+      <label for="cache">Prompt-cache read price, % of the input price</label>
+      <input id="cache" type="number" min="0" max="100" step="5" value="10">
     </div>
   </div>
 
@@ -79,9 +81,9 @@
         <div class="sub" id="retr">—</div></div>
       <div class="num"><div class="k">Measured floor / month <span title="tool-output delta only, zero assumptions">ⓘ</span></div>
         <div class="v" id="floorMo">—</div><div class="sub">no assumptions</div></div>
-      <div class="num"><div class="k">Realistic / month <span title="+ one eliminated grep round-trip re-billing the context">ⓘ</span></div>
+      <div class="num"><div class="k">With the saved round trip / month <span title="+ one eliminated grep round-trip whose context is re-read from the prompt cache">ⓘ</span></div>
         <div class="v" id="realMo">—</div><div class="sub" id="ctxNote">—</div></div>
-      <div class="num big"><div class="k">Realistic / year</div><div class="v" id="realYr">—</div>
+      <div class="num big"><div class="k">With the saved round trip / year</div><div class="v" id="realYr">—</div>
         <div class="sub">at the price above</div></div>
     </div>
   </div>
@@ -129,12 +131,15 @@ function selectedCodebase() { return CODEBASES.find(c => c.label === $("codebase
 
 function scenario() {
   const devs = +$("devs").value || 0, qpd = +$("qpd").value || 0,
-        days = +$("days").value || 0, ctx = +$("ctx").value || 0;
+        days = +$("days").value || 0, ctxFull = +$("ctx").value || 0,
+        cachePct = Math.min(100, Math.max(0, +$("cache").value || 0));
   const cb = selectedCodebase();
   const queriesMonth = devs * qpd * days;
   const floorPerQ = cb.grep_tokens - cb.lynx_tokens;
+  // The re-read context counts at the cached price: 20k tokens at 10% = 2k at full price.
+  const ctx = Math.round(ctxFull * cachePct / 100);
   const realPerQ  = floorPerQ + ctx;
-  return { devs, queriesMonth, ctx, tokFloor: queriesMonth*floorPerQ, tokReal: queriesMonth*realPerQ };
+  return { devs, queriesMonth, ctx, ctxFull, cachePct, tokFloor: queriesMonth*floorPerQ, tokReal: queriesMonth*realPerQ };
 }
 
 function render() {
@@ -149,7 +154,7 @@ function render() {
   $("floorMo").textContent = fmt(floorMo);
   $("realMo").textContent = fmt(realMo);
   $("realYr").textContent = fmt(realMo*12);
-  $("ctxNote").textContent = "+ " + (s.ctx/1000) + "k ctx / saved round-trip";
+  $("ctxNote").textContent = "+ " + (s.ctxFull/1000) + "k ctx at " + s.cachePct + "% / saved round-trip";
 
   drawBars(price, s);
 
@@ -160,8 +165,8 @@ function render() {
     "Token deltas are <strong>measured</strong> (grep " + cb.grep_tokens.toLocaleString() +
     " → Lynx " + cb.lynx_tokens.toLocaleString() + " tokens to answer, " + Math.round(pct*100) +
     "% fewer; " + cb.label + " / " + cb.language + " — see <code>benchmarks/RESULTS*.md</code>). The <em>floor</em> counts only the smaller " +
-    "tool output (zero assumptions). The <em>realistic</em> figure adds one eliminated grep round-trip re-billing a " +
-    (s.ctx/1000) + "k-token context — the only modelled assumption. Prices per 1M input tokens, editable above; " +
+    "tool output (zero assumptions). The second figure adds one eliminated grep round-trip whose " +
+    (s.ctxFull/1000) + "k-token context is re-read from the prompt cache at " + s.cachePct + "% of the input price, the only modelled assumption. Prices per 1M input tokens, editable above; " +
     "presets in <code>benchmarks/pricing.json</code>, measured deltas in <code>benchmarks/measured.json</code> (as of " + (PRICING.as_of||"") + "). Same math as the CLI: " +
     "<code>python benchmarks/savings_calculator.py</code>.";
 }
