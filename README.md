@@ -223,7 +223,7 @@ Developed by one author; APIs may still move before 1.x stabilizes. Issues and P
 
 ---
 
-<!-- MCP Registry ownership marker — must stay in the README published on
+<!-- MCP Registry ownership marker. It must stay in the README published on
      PyPI so registry.modelcontextprotocol.io can verify the package.
 mcp-name: io.github.lorenzo-cambiaghi/lynx
 -->

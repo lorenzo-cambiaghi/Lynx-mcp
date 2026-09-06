@@ -24,7 +24,7 @@ Lynx becomes a Coral schema, and your agent can JOIN code search with live
 data in one SQL statement:
 
 ```sql
--- "We have a Sentry error about webhook retries — where does that live,
+-- "We have a Sentry error about webhook retries: where does that live,
 --  and is there an open PR touching it?"
 SELECT s.file, s.symbol, s.score, p.html_url, p.state
 FROM lynx.search(q => 'retry logic for payment webhooks') s

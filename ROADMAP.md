@@ -7,7 +7,7 @@ PRs that make a case for (or against) these are welcome.
 
 ## Under evaluation
 
-### Vector store — evaluate LanceDB as the local backend
+### Vector store: evaluate LanceDB as the local backend
 ChromaDB serves Lynx well today, but we've hit cross-version index-format
 fragility: a version-incompatible index could blank the dashboard or crash
 the process, which is why Lynx now ships an out-of-process integrity probe and
@@ -23,7 +23,7 @@ large indexes. That is a better fit for the local-first design.
   Chroma's stability or scale becomes a recurring pain in practice, not as a
   speculative rewrite.
 
-### Embeddings — an optional "quality" preset
+### Embeddings: an optional "quality" preset
 The default stays `bge-small-en-v1.5` (384-dim, ~130 MB, fast on CPU).
 That is what keeps the install light and the on-save re-index near-instant
 without a GPU. For users with more RAM or compute who want higher ranking
@@ -42,7 +42,7 @@ quality, we're considering documenting a vetted step-up preset
 
 ## On the radar (additive, lower-risk)
 
-### Coral community source — merged; the graph functions are next
+### Coral community source: merged, the graph functions are next
 Lynx is an official community source in Coral's
 [`sources/community/`](https://github.com/withcoral/coral/tree/main/sources/community/lynx)
 directory (PR [#1297](https://github.com/withcoral/coral/pull/1297), merged

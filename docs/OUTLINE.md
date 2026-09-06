@@ -1,4 +1,4 @@
-# Outline mode — triage by signature, fetch the body on demand
+# Outline mode: triage by signature, fetch the body on demand
 
 `GET /api/v1/search?...&view=outline` returns each hit without its body,
 just a compact `signature` + `doc`, so an agent can scan the candidates cheaply
@@ -20,7 +20,7 @@ signatures are identical. It drops `content`, adds two small fields, and keeps
 everything else:
 
 ```jsonc
-// view=outline row — a real result from psf/requests
+// view=outline row: a real result from psf/requests
 {
   "source": "requests", "file": "models.py", "file_path": "…/requests/models.py",
   "symbol": "Response.iter_content", "kind": "function_definition",

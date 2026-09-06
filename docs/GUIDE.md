@@ -1,4 +1,4 @@
-# Lynx — full reference guide
+# Lynx: the full reference guide
 
 This is the complete manual for Lynx (configuration, every source type,
 the manager UI, retrieval internals, troubleshooting). For a quick
@@ -22,7 +22,7 @@ overview and the 3-command install, start from the
 2. [Why it exists](#why-it-exists)
 3. [Install Lynx](#install-lynx)
 4. [Prerequisites](#prerequisites)
-5. [LynxManager — guided setup, web UI, diagnostics (new in v0.9)](#lynxmanager--guided-setup-web-ui-diagnostics-new-in-v09)
+5. [LynxManager: guided setup, web UI, diagnostics (new in v0.9)](#lynxmanager-guided-setup-web-ui-diagnostics-new-in-v09)
 6. [Configuration](#configuration)
 7. [Migrating from v1 (single-source) configs](#migrating-from-v1-single-source-configs)
 8. [Build the index for the first time](#build-the-index-for-the-first-time)
@@ -214,12 +214,12 @@ so it works from any folder, in any shell, on any platform, without
 `source .venv/bin/activate`, `python -m`, or absolute paths.
 
 ```bash
-# pipx — the established "install a Python CLI globally" tool.
+# pipx: the established "install a Python CLI globally" tool.
 # macOS / Linux: `brew install pipx` (or `python -m pip install --user pipx`)
 # Windows:       `py -m pip install --user pipx`
 pipx install lynx-mcp
 
-# OR — uv (faster, same end result):
+# or uv (faster, same end result):
 # Install uv first: see https://docs.astral.sh/uv/getting-started/installation/
 uv tool install lynx-mcp
 ```
@@ -229,7 +229,7 @@ After either of those, `lynx` works from anywhere:
 ```bash
 lynx --version
 lynx manager init   # writes default config + pre-downloads embedding model
-lynx manager ui     # opens the web panel — add your sources from there
+lynx manager ui     # opens the web panel; add your sources from there
 ```
 
 (When LynxMCP lands on PyPI the source URL becomes just `lynx`, e.g.
@@ -342,7 +342,7 @@ lynx --help
 
 ---
 
-## LynxManager — guided setup, web UI, diagnostics (new in v0.9)
+## LynxManager: guided setup, web UI, diagnostics (new in v0.9)
 
 If you'd rather not hand-edit a JSON file and read through the
 configuration section that follows, `lynx manager` covers the entire
@@ -350,7 +350,7 @@ lifecycle in four commands. This is the recommended on-ramp for new
 users. Everything stays local: no telemetry, no cloud, the same privacy
 guarantees as the rest of Lynx.
 
-### `lynx manager init` — minimal bootstrap
+### `lynx manager init`: minimal bootstrap
 
 ```bash
 lynx manager init
@@ -387,7 +387,7 @@ lynx manager init --non-interactive
 lynx source add myproject --type codebase --path /path/to/repo --build
 ```
 
-### `lynx manager doctor` — full diagnostic
+### `lynx manager doctor`: full diagnostic
 
 <img src="../readmeData/lynxManager_4.jpg" alt="Doctor Diagnostic" width="800">
 
@@ -411,7 +411,7 @@ and the web UI first:
 # A process killed mid-write (Ctrl-C during indexing, a killed serve) left
 # ChromaDB's write-ahead log wedged: every open hangs and the integrity
 # probe times out at each start. Purges the stuck writes and queues the
-# affected files for re-indexing — nothing is silently lost.
+# affected files for re-indexing; nothing is silently lost.
 lynx manager doctor --heal-wal <source>
 
 # The SHA cache lists files as indexed but the index holds no chunks for
@@ -426,7 +426,7 @@ The per-source check reports both conditions ("index WAL is wedged" and
 coverage drift) together with the flag that fixes them, so you never have
 to diagnose them yourself.
 
-### `lynx manager install` — extras + model download
+### `lynx manager install`: extras + model download
 
 ```bash
 # What extras are available / installed?
@@ -446,14 +446,14 @@ The `--model` path temporarily bypasses `HF_HUB_OFFLINE` /
 `TRANSFORMERS_OFFLINE` so you can force a download even when
 runtime offline mode is on. Useful when prepping an air-gapped machine.
 
-### `lynx manager ui` — local web panel
+### `lynx manager ui`: local web panel
 
 A small web app that runs on your own machine and lets you click
 through everything Lynx can do; no command line needed past the launch.
 Useful when you've just set Lynx up and want to check it works
 before wiring it into your AI client.
 
-#### Step 1 — launch it
+#### Step 1: launch it
 
 The fastest way is to double-click the launcher in the repo.
 
@@ -484,7 +484,7 @@ cmd.exe / Git Bash all need to be launched from the folder that
 contains `config.json` (or you pass the full path):
 
 ```bash
-# Windows PowerShell / cmd.exe / Git Bash — point at it explicitly if
+# Windows PowerShell / cmd.exe / Git Bash: point at it explicitly if
 # you don't want to cd first:
 python -m lynx manager ui --config C:\Users\you\projects\myrepo\config.json
 ```
@@ -534,7 +534,7 @@ The UI listens only on `127.0.0.1`, so it is not reachable from other
 machines on the network. There's no login because there's no need: nobody
 else can reach it.
 
-#### Step 2 — a 5-minute tour for a brand-new user
+#### Step 2: a 5-minute tour for a brand-new user
 
 Say you've just run `lynx manager init` and the UI opened in your
 browser on the dashboard. The empty state nudges you toward
@@ -1368,7 +1368,7 @@ lynx search "auth" --glob "**/middleware/**" -k 5
 lynx search "retry policy" -s api -s docs
 lynx search "retry policy" --source ALL
 
-# Signatures only — cheap triage for a broad query or a large --top-k.
+# Signatures only: cheap triage for a broad query or a large --top-k.
 lynx search "everything touching auth" -k 40 --outline
 ```
 
@@ -1535,7 +1535,7 @@ graph live the same way it does for the search index, and `lynx build`
 rebuilds both. Use `lynx graph build --force` after a graph schema bump
 or when you suspect stale edges.
 
-#### `graph query` — ask the graph from a terminal
+#### `graph query`: ask the graph from a terminal
 
 Every operation of the `graph_query` MCP tool, with the same rendering:
 what you read here is exactly what an agent receives.
@@ -2685,11 +2685,11 @@ lynx/
 │       ├── __main__.py        Enables `python -m lynx`
 │       ├── cli.py             CLI command handlers (build, search, source,
 │       │                      graph, manager, migrate-config)
-│       ├── cli_parser.py      The argument surface — argparse construction only,
+│       ├── cli_parser.py      The argument surface: argparse construction only,
 │       │                      no execution. Built on EVERY invocation, so it
 │       │                      stays free of heavy imports
 │       ├── query_cli.py       Retrieval / navigation commands (find-definition,
-│       │                      impact, deep-search, …) — same manager calls and
+│       │                      impact, deep-search, ...): same manager calls and
 │       │                      same renderers as the matching MCP tools
 │       ├── server.py          FastMCP server, fixed tool set (source-arg tools;
 │       │                      graph_query + find_* registered only when applicable)
@@ -2759,10 +2759,10 @@ lynx/
     │       ├── raw_inherits.json   Unresolved bases (re-resolved on update)
     │       ├── file_hashes.json    Graph-layer per-file SHA cache
     │       └── metadata.json       schema_version + last_update / last_full_rebuild
-    ├── unityDoc/                   (webdoc source — same files as above PLUS:)
+    ├── unityDoc/                   (webdoc source: same files as above plus:)
     │   ├── _dump/                  One .md per crawled URL (YAML frontmatter)
     │   └── _fetch_state.json       {url: {fetched_at, dump_file}}
-    └── manuals/                    (pdf source — same Chroma files as above PLUS:)
+    └── manuals/                    (pdf source: same Chroma files as above plus:)
         ├── _dump/                  One .md per extracted page, organised as
         │                           <rel>/<pdf_stem>/page_NNNN.md
         └── _extract_state.json     {pdf_abs_path: {sha256, n_pages, status, ...}}
