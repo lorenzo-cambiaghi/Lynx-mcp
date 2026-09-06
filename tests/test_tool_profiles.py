@@ -18,6 +18,7 @@ from mcp.server.fastmcp import FastMCP
 
 from lynx import tool_profiles as tp
 from lynx.server import (
+    LynxServer,
     _build_guide,
     _build_instructions,
     _register_combined_tools,
@@ -25,6 +26,8 @@ from lynx.server import (
     _register_graph_tools,
     _register_search_tools,
     apply_tool_profile,
+    hidden_tool_message,
+    package_version,
     resolve_profile,
 )
 
@@ -222,4 +225,35 @@ def test_tools_list_stays_within_budget(profile):
     for tool in asyncio.run(mcp.list_tools()):
         assert len(tool.description or "") <= _MAX_DESCRIPTION, tool.name
         schema = json.dumps(tool.inputSchema)
-        assert '"title"' not in schema, f"{tool.name}: schema titles are dead weight"
+        # A string-valued "title" is pydantic's generated label; a parameter that
+        # happens to be named title would render as `"title": {`, and is fine.
+        assert '"title": "' not in schema, f"{tool.name}: schema titles are dead weight"
+
+
+def test_calling_a_hidden_tool_names_the_profile_and_the_fix():
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    mgr = _Manager({"demo": _Backend()})
+    mcp = LynxServer("t")
+    _register_search_tools(mcp, mgr)
+    _register_global_tools(mcp, mgr)
+    _, dropped = apply_tool_profile(mcp, "core")
+    assert "list_sources" in dropped
+    mcp.hidden_tools = {n: hidden_tool_message(n, "core") for n in dropped}
+    with pytest.raises(ToolError) as exc:
+        asyncio.run(mcp.call_tool("list_sources", {}))
+    msg = str(exc.value)
+    assert "not loaded in tool profile 'core'" in msg
+    assert "--profile full" in msg and "tools.include" in msg
+    # a genuinely unknown name still fails the SDK way
+    with pytest.raises(ToolError):
+        asyncio.run(mcp.call_tool("no_such_tool", {}))
+
+
+def test_server_reports_the_package_version_not_the_sdk_version():
+    import importlib.metadata
+
+    mcp = LynxServer("t")
+    opts = mcp._mcp_server.create_initialization_options()
+    assert opts.server_version == package_version()
+    assert opts.server_version != importlib.metadata.version("mcp")

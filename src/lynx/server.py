@@ -47,6 +47,7 @@ _REAL_STDOUT_FD = os.dup(1)
 os.dup2(2, 1)
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -818,6 +819,44 @@ def _register_combined_tools(mcp, manager, *, has_graph: bool = False):
             return _format_search_diff(src, out)
 
 
+class LynxServer(FastMCP):
+    """FastMCP plus two things the SDK leaves to the server: a call to a tool
+    the profile hid answers with the profile and the fix instead of
+    "Unknown tool", and `serverInfo.version` is this package's version, not
+    the SDK's (FastMCP falls back to the `mcp` package version when the
+    server passes none)."""
+
+    hidden_tools: dict = {}
+
+    def __init__(self, name: str, *, instructions: str | None = None) -> None:
+        super().__init__(name, instructions=instructions)
+        self.hidden_tools = {}
+        self._mcp_server.version = package_version()
+
+    async def call_tool(self, name: str, arguments: dict):
+        message = self.hidden_tools.get(name)
+        if message is not None:
+            raise ToolError(message)
+        return await super().call_tool(name, arguments)
+
+
+def package_version() -> str:
+    """The installed lynx-mcp version, or "unknown" outside an install."""
+    try:
+        from importlib.metadata import version
+        return version("lynx-mcp")
+    except Exception:
+        return "unknown"
+
+
+def hidden_tool_message(name: str, profile: str) -> str:
+    return (
+        f"Tool {name!r} is not loaded in tool profile {profile!r}. Start the server "
+        f"with `lynx serve --profile full`, set LYNX_TOOL_PROFILE=full, or add "
+        f"\"{name}\" to tools.include in config.json."
+    )
+
+
 def resolve_profile(config, override: str | None = None) -> str:
     """Which tool profile this process runs: `lynx serve --profile` wins, then
     the LYNX_TOOL_PROFILE environment variable, then `tools.profile` in the
@@ -901,7 +940,7 @@ def run_server(config_path=None, profile: str | None = None):
     # FastMCP is constructed only now so the handshake `instructions` can
     # embed the live source catalog: every client gets the usage playbook
     # automatically, without installing a rules file.
-    mcp = FastMCP("lynx", instructions=_build_instructions(manager, selected, profile_name))
+    mcp = LynxServer("lynx", instructions=_build_instructions(manager, selected, profile_name))
 
     # Full playbook as an MCP resource the client can read on demand.
     guide_text = _build_guide(manager, selected, profile_name)
@@ -941,6 +980,7 @@ def run_server(config_path=None, profile: str | None = None):
     kept, dropped = apply_tool_profile(
         mcp, profile_name, config.tools.include, config.tools.exclude,
     )
+    mcp.hidden_tools = {name: hidden_tool_message(name, profile_name) for name in dropped}
     print(
         f"[server] tool profile {profile_name!r}: {len(kept)} tools"
         + (f", not loaded: {', '.join(dropped)}" if dropped else ""),

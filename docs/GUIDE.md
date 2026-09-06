@@ -64,10 +64,11 @@ This server fixes that. You configure N **sources** in `config.json` (a
 codebase, a folder of library docs, a vendor reference dump, ...). For
 each source the server auto-generates the right set of MCP tools at boot.
 
-### Always-on: semantic + lexical search
+### Search tools
 
 Two search tools (a fixed set: they take a `source` argument and are not
-generated per source):
+generated per source). `search` is in every tool profile, `deep_search` from
+`standard` up; see [Tool profiles](#tool-profiles).
 
 | Tool | What it does |
 |---|---|
@@ -1688,7 +1689,7 @@ handshake instructions and the `lynx://guide` resource name only the
 tools the session has, and tell the model which profile hid the rest, so
 it can ask you for `--profile full` instead of guessing.
 
-### Search tools (always on)
+### Search tools (`search` in every profile, `deep_search` from `standard`)
 
 #### `search(query, top_k=None, file_glob=None, extensions=None, path_contains=None)`
 
@@ -1756,7 +1757,7 @@ identifier, semantic intent, usage angle). Paraphrases of the same
 phrasing are bad variants. See the "AI integration rules" section for
 examples.
 
-### Global tools (always available, do not depend on source names)
+### Global tools (no source name; `feedback` in every profile, the other three in `full`)
 
 #### `list_sources()`
 
@@ -1848,7 +1849,7 @@ graph_query("callers")("ApplyDamage")
 See [Graph layer (opt-in)](#graph-layer-opt-in) for the build pipeline,
 cross-file resolution policy, inheritance edges, and costs.
 
-### Combined tools (always-on for codebase sources, new in v0.8)
+### Combined tools (codebase sources; the profile column in the README says which are loaded)
 
 Every `codebase` source automatically gets a set of combined tools that
 mix graph + search to answer questions a single tool can't:
@@ -2547,7 +2548,7 @@ currently only filters file-watcher events, not the indexing pipeline.
 Two layers run side by side on every codebase source:
 
 ```
-Search layer (always on):
+Search layer (every codebase source):
   Your code  --> chunked --> embedded (BGE-small, on CPU)  --> ChromaDB (local file)
                                                                      |
   Your question  --> embedded --> top-K cosine similarity  ----------+
