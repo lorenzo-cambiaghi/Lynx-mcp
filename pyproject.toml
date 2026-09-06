@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 # Distribution name is `lynx-mcp` (the bare `lynx` name on PyPI belongs to an
 # unrelated 2014 config library). The import package and the CLI stay `lynx`.
 name = "lynx-mcp"
-version = "1.8.0"
+version = "1.9.0"
 description = "LynxMCP: 100% local MCP server for the code questions grep can't answer. Call graph and blast radius, hybrid BM25 + dense code search on ONNX Runtime, library docs and PDFs as sources. No cloud, no PyTorch."
 readme = "README.md"
 license = { file = "LICENSE" }

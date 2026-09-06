@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased
+## 1.9.0 - 2026-09-06
+
+Upgrading from 1.8.0: the index is unchanged, nothing to rebuild. Two things
+do change under you. The default tool profile loads 10 of the 17 tools, so set
+`tools.profile` to `"full"` in config.json (or run `lynx serve --profile full`)
+to keep the whole set; a call to a tool the profile hid answers by naming the
+profile and the fix. And the install no longer contains PyTorch, but an
+upgrade in place leaves the old wheels behind: reinstall to reclaim the
+gigabyte, with `pipx uninstall lynx-mcp && pipx install lynx-mcp` or
+`uv tool install --force --reinstall lynx-mcp`. The first run afterwards
+fetches the model's ONNX graph (134 MB) into the same HuggingFace cache entry,
+or `lynx manager install --model` does it up front.
 
 ### Added
 
@@ -30,40 +41,6 @@ equal to what the server actually registers.
 
 ### Changed
 
-The README leads with what grep cannot answer (structure, behaviour, docs past
-the model's cutoff) instead of competing with it on ranking, publishes hit@5
-next to hit@1 and MRR for all three benchmarks, including the two where grep
-ranks higher, and moves the money figures below the measurements. The savings
-calculator (CLI and page) counts the saved round trip's context at the
-prompt-cache price (`--cache-read-discount`, default 10%) instead of the full
-input price; for 25 engineers that is $17,000 to $27,000 a year on a $10
-model, where the old chart said $85,000 to $95,000. The three SQL integrations
-and the offline-install recipes moved to their own pages. The package and
-registry descriptions start with "LynxMCP", the name that search engines can
-tell apart from ByteDance's Lynx and from the lynx browser. The Docker image
-serves the `full` tool profile, so directory scanners list all 17 tools.
-
-The MCP handshake no longer waits for the indexes. `lynx serve` used to open
-every index (model, Chroma stores, BM25 corpora, graph, the integrity probe)
-before reading the first byte of JSON-RPC: about 10 seconds with two indexes,
-and on a first run the whole build. Claude Code gives a server 30 seconds to
-answer `initialize` and then reports it dead, so a first run inside a client
-could not work at all. Now the tools are registered against a preview of the
-sources built from the config alone (type, path, graph and git flags are all
-there), the transport starts within a second, and the real manager is built
-in a background thread. A tool call that arrives early waits up to 20 seconds
-(`LYNX_TOOL_WAIT_SECONDS`), then answers with the loading state and asks to
-be retried; a failed load answers with the error and a `doctor` hint instead
-of a server that exits before saying why. The handshake instructions carry
-one sentence about this so the model knows to retry. Measured from process
-spawn with two indexes of 523 and 279 MB: `initialize` answered in 1.4 s
-against 10.6 s before. The same two indexes once took 86 s to open on a cold
-machine during these measurements, which no handshake would have survived;
-the client saw the 1.4 s handshake and a loading message on each call until
-the first search came back. Stdout stays pointed at stderr for the life of the
-process and the transport writes to the saved real descriptor, so a library
-that prints during the background load cannot corrupt the channel.
-
 The embedding model and the optional reranker run on ONNX Runtime instead of
 PyTorch. The index is untouched: same model, and the vectors are the same to
 the sixth decimal on every reference text (cosine 1.000000 against the
@@ -84,12 +61,6 @@ first search after `lynx serve` starts from 7.8 s to 3.9 s. Indexing
 throughput is unchanged (14.2 chunks/s against 13.3 on 200 real C# chunks;
 batches are now grouped by length so padding is not wasted).
 
-The handshake is still not instant. Measured from process spawn, `initialize`
-is answered after 10.6 s with those two indexes: 3.5 s is the out-of-process
-integrity probe, 1.3 s the graph load, 1.1 s the model session, the rest
-Chroma and the BM25 corpus. None of that is the runtime any more, and the next
-step is to answer `initialize` before the indexes are open.
-
 Model files follow the runtime. `lynx manager install --model` downloads what
 the runtime opens, the ONNX graph plus the tokenizer (134 MB for bge-small
 instead of the 267 MB of the two PyTorch formats), and `lynx manager doctor`
@@ -103,6 +74,42 @@ first. Any HuggingFace repo that ships `onnx/model.onnx` can be configured
 (the BGE family, `sentence-transformers/all-MiniLM-L6-v2`, the ms-marco
 cross-encoders); a model without one is refused with a message that names
 the file and the export command.
+
+The MCP handshake no longer waits for the indexes. `lynx serve` used to open
+every index (model, Chroma stores, BM25 corpora, graph, the integrity probe)
+before reading the first byte of JSON-RPC: about 10 seconds with two indexes,
+and on a first run the whole build. Claude Code gives a server 30 seconds to
+answer `initialize` and then reports it dead, so a first run inside a client
+could not work at all. Now the tools are registered against a preview of the
+sources built from the config alone (type, path, graph and git flags are all
+there), the transport starts within a second, and the real manager is built
+in a background thread. A tool call that arrives early waits up to 20 seconds
+(`LYNX_TOOL_WAIT_SECONDS`), then answers with the loading state and asks to
+be retried; a failed load answers with the error and a `doctor` hint instead
+of a server that exits before saying why. The handshake instructions carry
+one sentence about this so the model knows to retry. Measured from process
+spawn with two indexes of 523 and 279 MB: `initialize` answered in 1.4 s
+against 10.6 s before. Those 10.6 s were the indexes themselves: 3.5 s the
+out-of-process integrity probe, 1.3 s the graph, 1.1 s the model session, the
+rest Chroma and the BM25 corpus. The same two indexes once took 86 s to open
+on a cold machine during these measurements, which no handshake would have
+survived; the client saw the 1.4 s handshake and a loading message on each
+call until the first search came back. Stdout stays pointed at stderr for the
+life of the process and the transport writes to the saved real descriptor, so
+a library that prints during the background load cannot corrupt the channel.
+
+The README leads with what grep cannot answer (structure, behaviour, docs past
+the model's cutoff) instead of competing with it on ranking, publishes hit@5
+next to hit@1 and MRR for all three benchmarks, including the two where grep
+ranks higher, and moves the money figures below the measurements. The savings
+calculator (CLI and page) counts the saved round trip's context at the
+prompt-cache price (`--cache-read-discount`, default 10%) instead of the full
+input price; for 25 engineers that is $17,000 to $27,000 a year on a $10
+model, where the old chart said $85,000 to $95,000. The three SQL integrations
+and the offline-install recipes moved to their own pages. The package and
+registry descriptions start with "LynxMCP", the name that search engines can
+tell apart from ByteDance's Lynx and from the lynx browser. The Docker image
+serves the `full` tool profile, so directory scanners list all 17 tools.
 
 ## 1.8.0 — 2026-09-03
 
