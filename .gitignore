@@ -68,3 +68,7 @@ benchmarks/_target/
 benchmarks/_storage*/
 benchmarks/results*.json
 benchmarks/_*.log
+
+# Project: private release playbook (local paths, antivirus quirks,
+# credential handling). Useful to whoever publishes, not to whoever clones.
+/RELEASE_PLAYBOOK.md
