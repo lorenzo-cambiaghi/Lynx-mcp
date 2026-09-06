@@ -100,25 +100,25 @@ If you would rather skip the terminal, there are [double-click installers](https
 
 ## The tools your AI gets
 
-The tool set is fixed. It does not grow with the number of sources, so your client's tool list (and context window) stays small. Tools take a `source` argument where relevant.
+The tool set is fixed: it does not grow with the number of sources. It is also layered, because every tool definition rides in your client's context on every turn. Three profiles: `core` (5 tools, about 1,200 tokens of definitions), `standard` (10 tools, about 2,700 tokens, the default) and `full` (17 tools, about 3,800 tokens). Set `tools.profile` in config.json or pass `lynx serve --profile full`; `tools.include` adds a single tool to a profile. Tools take a `source` argument where relevant.
 
-| Tool | What it answers |
-|------|-----------------|
-| `search(query, source?, outline?)` | Primary hybrid search. Omit `source` to search every source at once (RRF-fused). `outline=true` returns signatures-only for cheap triage (see below). |
-| `deep_search(queries, source?)` | Escalation: tries multiple query phrasings until one passes a quality threshold. |
-| `graph_query(operation, symbol?)` | `callers`, `callees`, `subclasses`, `superclasses`, `imports`, `neighbors`, `shortest_path`, `overview`, `surprising_connections`, `status`. |
-| `find_definition(symbol)` | Where is X defined? (AST-precise when the graph is on, BM25 fallback otherwise.) |
-| `find_usages(symbol)` | Every use of X: calls *and* non-call references (generics, decorators, docs). |
-| `find_tests_for(symbol)` | Are there tests for X? |
-| `find_similar(snippet)` | Does code like this already exist? |
-| `describe_symbol(symbol)` | One-shot context for X: definition + who calls it + what it calls + its tests, in a single call. |
-| `impact(symbol)` | Blast radius: everything that reaches X *transitively* through the call graph (with hop distance) + the tests to re-run. |
-| `module_summary(file)` | A file as a unit: the symbols it defines, what it imports, and which files depend on it. *(graph)* |
-| `repo_overview()` | "What is this and where do I start": detected languages, frameworks, entry points, and build/test/run commands. |
-| `export_graph(target, mode?)` | Render a shareable, offline graph view (a symbol's blast radius or a file hub) as a single self-contained file. *(graph)* |
-| `search_diff(query, base?)` | Search only the files changed vs a base branch. Built for code review. |
-| `feedback(trying_to_do, tried, stuck)` | The agent files a report when the index couldn't answer. Stored 100% locally, your signal for tuning sources. |
-| `list_sources` / `get_rag_status` / `update_source_index` | Introspection and maintenance. |
+| Tool | Profile | What it answers |
+|------|---------|-----------------|
+| `search(query, source?, outline?)` | core | Primary hybrid search. Omit `source` to search every source at once (RRF-fused). `outline=true` returns signatures-only for cheap triage (see below). |
+| `deep_search(queries, source?)` | standard | Escalation: tries multiple query phrasings until one passes a quality threshold. |
+| `graph_query(operation, symbol?)` | standard | `callers`, `callees`, `subclasses`, `superclasses`, `imports`, `neighbors`, `shortest_path`, `overview`, `surprising_connections`, `status`. |
+| `find_definition(symbol)` | standard | Where is X defined? (AST-precise when the graph is on, BM25 fallback otherwise.) |
+| `find_usages(symbol)` | core | Every use of X: calls *and* non-call references (generics, decorators, docs). |
+| `find_tests_for(symbol)` | full | Are there tests for X? |
+| `find_similar(snippet)` | full | Does code like this already exist? |
+| `describe_symbol(symbol)` | core | One-shot context for X: definition + who calls it + what it calls + its tests, in a single call. |
+| `impact(symbol)` | core | Blast radius: everything that reaches X *transitively* through the call graph (with hop distance) + the tests to re-run. |
+| `module_summary(file)` | full | A file as a unit: the symbols it defines, what it imports, and which files depend on it. *(graph)* |
+| `repo_overview()` | standard | "What is this and where do I start": detected languages, frameworks, entry points, and build/test/run commands. |
+| `export_graph(target, mode?)` | full | Render a shareable, offline graph view (a symbol's blast radius or a file hub) as a single self-contained file. *(graph)* |
+| `search_diff(query, base?)` | standard | Search only the files changed vs a base branch. Built for code review. |
+| `feedback(trying_to_do, tried, stuck)` | core | The agent files a report when the index couldn't answer. Stored 100% locally, your signal for tuning sources. |
+| `list_sources` / `get_rag_status` / `update_source_index` | full | Introspection and maintenance. |
 
 Retrieval tools carry MCP `readOnlyHint` annotations, so clients can auto-approve them. The only write is `export_graph`, which saves a graph view file. The server ships its usage playbook in the MCP handshake (`instructions` plus a `lynx://guide` resource), so your agent knows how to query well without any rules-file setup.
 

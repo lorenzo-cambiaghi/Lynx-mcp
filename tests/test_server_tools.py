@@ -151,7 +151,10 @@ def test_codebase_without_graph_omits_graph_only_tools():
     assert {"find_definition", "describe_symbol", "impact", "repo_overview"} <= names
 
 
-def test_descriptions_carry_source_catalog():
+def test_descriptions_carry_no_source_catalog_the_instructions_do():
+    """The source names used to be repeated in every tool description. They
+    now appear once, in the handshake instructions, and the descriptions
+    stay short (see tool_docs.py for why that matters per session)."""
     mgr = FakeManager({
         "mygame": FakeBackend(graph=object()),
         "docs": FakeBackend(type_name="webdoc"),
@@ -159,7 +162,11 @@ def test_descriptions_carry_source_catalog():
     tools = _tools(_register_everything(mgr))
     for name in ("search", "deep_search"):
         desc = tools[name].description
-        assert desc and "mygame" in desc and "docs" in desc
+        # "docs" is an ordinary word the description may use; the source
+        # name that could only come from the catalog is "mygame".
+        assert desc and "mygame" not in desc
+    text = _build_instructions(mgr)
+    assert "mygame" in text and "docs" in text
 
 
 def test_search_routes_to_one_source_or_all():

@@ -101,14 +101,18 @@ def render_rules_for_sources(
     source_names: list[str],
     has_graph: bool,
     has_git: bool,
+    tools=None,
 ) -> str:
     """Build the AI-client rules-file body for the configured sources.
 
     Tailored to which capabilities are actually available: graph-layer
     tool names appear only when at least one source has the graph layer
     enabled, and diff-search tool names appear only when at least one
-    source has git_integration on.
+    source has git_integration on. `tools`, when given, is the set the
+    running server registered (its tool profile); tools outside it are not
+    mentioned, so the playbook never recommends a call that cannot be made.
     """
+    has = (lambda name: True) if tools is None else (lambda name: name in set(tools))
     lines: list[str] = [
         "# Code Reuse & Library Awareness",
         "",
@@ -122,13 +126,27 @@ def render_rules_for_sources(
     for n in source_names:
         lines.append(f"- `{n}` — pass it as the `source` argument of the tools below.")
     lines.append("")
-    lines.append("- `search(query, source=...)` — semantic + lexical hybrid search.")
-    lines.append("- `search(query, outline=true)` — same ranked hits, signatures only "
-                 "(no bodies). Cheap triage for broad/exploratory queries or a large "
-                 "top_k: scan the signatures, then read just the one body you need with "
-                 "`find_definition` or its file:line. Use the default full search when "
-                 "you'll work with the code right away.")
-    lines.append("- `deep_search(queries, source=...)` — fallback for ambiguous queries.")
+    if has("search"):
+        lines.append("- `search(query, source=...)` — semantic + lexical hybrid search.")
+        lines.append("- `search(query, outline=true)` — same ranked hits, signatures only "
+                     "(no bodies). Cheap triage for broad/exploratory queries or a large "
+                     "top_k: scan the signatures, then read just the one body you need "
+                     "by its file:line. Use the default full search when you'll work "
+                     "with the code right away.")
+    if has("deep_search"):
+        lines.append("- `deep_search(queries, source=...)` — fallback for ambiguous queries.")
+    understand = []
+    if has("describe_symbol"):
+        understand.append("- `describe_symbol(symbol)` — definition + callers + callees + tests in one call.")
+    if has("impact"):
+        understand.append("- `impact(symbol)` — transitive blast radius of a change, plus the tests to re-run.")
+    if has("repo_overview"):
+        understand.append("- `repo_overview()` — languages, entry points and build/test commands of an unfamiliar repo.")
+    if understand:
+        lines.append("")
+        lines.append("## Understand before you change")
+        lines.append("")
+        lines.extend(understand)
     if len(source_names) > 1:
         lines.append("")
         lines.append("When unsure which source has the answer, omit `source` to "
@@ -140,18 +158,25 @@ def render_rules_for_sources(
     lines.append("search the codebase source first to avoid duplication.")
     lines.append("Before invoking a library API, search the relevant docs source")
     lines.append("if one exists — your training data may predate the version in use.")
-    if has_graph:
+    structural = []
+    if has("find_definition"):
+        structural.append("- `find_definition(symbol)` — where is X defined?")
+    if has("find_usages"):
+        structural.append("- `find_usages(symbol)` — who calls X? typeof / generics included.")
+    if has("find_tests_for"):
+        structural.append("- `find_tests_for(symbol)` — are there tests for X?")
+    if has("find_similar"):
+        structural.append("- `find_similar(snippet)` — is there code similar to this?")
+    if has_graph and has("graph_query"):
+        structural.append("- `graph_query(operation, symbol)` — operations: callers, callees,")
+        structural.append("  subclasses, superclasses, imports, neighbors, shortest_path,")
+        structural.append("  overview (god nodes + communities), surprising_connections, status.")
+    if has_graph and structural:
         lines.append("")
         lines.append("## Code-aware structural queries (graph layer enabled)")
         lines.append("")
-        lines.append("- `find_definition(symbol)` — where is X defined?")
-        lines.append("- `find_usages(symbol)` — who calls X? typeof / generics included.")
-        lines.append("- `find_tests_for(symbol)` — are there tests for X?")
-        lines.append("- `find_similar(snippet)` — is there code similar to this?")
-        lines.append("- `graph_query(operation, symbol)` — operations: callers, callees,")
-        lines.append("  subclasses, superclasses, imports, neighbors, shortest_path,")
-        lines.append("  overview (god nodes + communities), surprising_connections, status.")
-    if has_git:
+        lines.extend(structural)
+    if has_git and has("search_diff"):
         lines.append("")
         lines.append("## Diff-aware search (git_integration enabled)")
         lines.append("")

@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### Added
+
+Tool profiles. Every tool definition sits in the client's context on every
+turn, and the seventeen tools cost about 7,700 tokens per session (30,678
+characters of `tools/list` on the wire), more than three retrievals' worth of
+the saving Lynx advertises. The tools are now layered: `core` (search,
+describe_symbol, find_usages, impact, feedback), `standard` (core plus
+find_definition, deep_search, graph_query, repo_overview, search_diff; the
+default) and `full` (all seventeen). Pick one with `tools.profile` in
+config.json, with `lynx serve --profile`, or with the `LYNX_TOOL_PROFILE`
+variable; `tools.include` and `tools.exclude` adjust a profile by name. A
+profile hides tools, it never adds one a source cannot support. The handshake
+instructions and the `lynx://guide` resource name only the tools the session
+has, and say which profile hid the rest and how to get them back.
+
+The descriptions went on a diet at the same time. Each tool used to repeat
+the source catalog and re-list its own arguments in prose; the catalog now
+appears once, in the handshake instructions, arguments are described only in
+the schema, and the schema no longer carries pydantic's generated titles or
+an output schema for a `-> str` return (which also stops the SDK from sending
+every result twice, as text and as a structured copy). Measured on the wire
+with two sources, graph and git enabled: full 15,279 characters (about 3,800
+tokens, from 7,700), standard 10,704 (about 2,700), core 4,783 (about 1,200).
+A test keeps each profile under a budget, and another keeps the profile table
+equal to what the server actually registers.
+
 ### Changed
 
 The embedding model and the optional reranker run on ONNX Runtime instead of

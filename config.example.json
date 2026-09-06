@@ -25,6 +25,12 @@
       "top_n_before_rerank": 30
     }
   },
+  "_tools_comment": "Which MCP tools `lynx serve` registers: core (5), standard (10, the default) or full (17). Every tool definition sits in the client's context on every turn, so smaller is cheaper. `include` / `exclude` adjust a profile by tool name; `lynx serve --profile` and the LYNX_TOOL_PROFILE variable override this block.",
+  "tools": {
+    "profile": "standard",
+    "include": [],
+    "exclude": []
+  },
   "sources": {
     "myproject": {
       "type": "codebase",

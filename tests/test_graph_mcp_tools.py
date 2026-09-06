@@ -121,11 +121,12 @@ def test_single_graph_query_tool_with_rich_description(graph_mcp):
     assert registered == ["graph_query"], registered
 
     # The description MUST be non-empty (f-string "docstrings" silently
-    # produce empty descriptions) and must carry both the routing info the
-    # client needs: the operation catalog and the source name.
+    # produce empty descriptions) and must carry the operation catalog. The
+    # source names are not in it any more: they are stated once in the
+    # handshake instructions instead of once per tool (see tool_docs.py).
     desc = _tool(graph_mcp).description
     assert desc and len(desc) > 100
-    assert "demo" in desc
+    assert "demo" not in desc
     for op in (
         "callers", "callees", "subclasses", "superclasses", "imports",
         "neighbors", "shortest_path", "overview", "surprising_connections",

@@ -60,6 +60,14 @@ SOURCE_NAME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]{0,39}$")
 # ---------------------------------------------------------------------------
 
 
+from .tool_profiles import (  # stdlib-only module, safe at load time
+    DEFAULT_PROFILE as _DEFAULT_TOOL_PROFILE,
+    ToolProfileError as _ToolProfileError,
+    validate_profile as _validate_tool_profile,
+    validate_tool_names as _validate_tool_names,
+)
+
+
 @dataclass(frozen=True)
 class EmbeddingConfig:
     model_name: str = "BAAI/bge-small-en-v1.5"
@@ -115,6 +123,15 @@ class SearchConfig:
 
 
 @dataclass(frozen=True)
+class ToolsConfig:
+    """Which MCP tools `lynx serve` registers. See `tool_profiles.py` for the
+    profiles and the reasoning; `include` / `exclude` adjust one by name."""
+    profile: str = _DEFAULT_TOOL_PROFILE
+    include: tuple = ()
+    exclude: tuple = ()
+
+
+@dataclass(frozen=True)
 class Config:
     config_version: int
     storage_path: Path
@@ -130,6 +147,7 @@ class Config:
     # defaults to `<storage_path>/reports`. Settable in config.json
     # ("reports_path") and, later, from the LynxManager UI.
     reports_path: Optional[Path] = None
+    tools: ToolsConfig = field(default_factory=ToolsConfig)
 
 
 # ---------------------------------------------------------------------------
@@ -581,6 +599,19 @@ def load_config(config_path: Path | None = None) -> Config:
     raw_reports = raw.get("reports_path")
     reports_path = _resolve_path(raw_reports, base_dir) if raw_reports else None
 
+    # --- tools -------------------------------------------------------------
+    tools_raw = raw.get("tools", {})
+    if not isinstance(tools_raw, dict):
+        _config_error("'tools' must be an object, e.g. {\"profile\": \"standard\"}")
+    try:
+        tools = ToolsConfig(
+            profile=_validate_tool_profile(str(tools_raw.get("profile", _DEFAULT_TOOL_PROFILE))),
+            include=_validate_tool_names(tools_raw.get("include") or (), what="include"),
+            exclude=_validate_tool_names(tools_raw.get("exclude") or (), what="exclude"),
+        )
+    except _ToolProfileError as e:
+        _config_error(str(e))
+
     return Config(
         config_version=version,
         storage_path=storage_path,
@@ -589,6 +620,7 @@ def load_config(config_path: Path | None = None) -> Config:
         search=search,
         sources=sources,
         reports_path=reports_path,
+        tools=tools,
     )
 
 

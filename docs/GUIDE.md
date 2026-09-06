@@ -703,6 +703,7 @@ Minimum useful config (single source):
 | `storage_path` | Where per-source ChromaDB folders live (each at `<storage_path>/<source_name>/`). Relative paths are resolved against the config file's directory. Default `./rag_storage`. |
 | `loading_timeout_seconds` | Max time to wait for the first index build before MCP tool calls give up. Default `600`. |
 | `embedding.model_name` | A HuggingFace repo that ships an ONNX export (`onnx/model.onnx`): the BGE family (`BAAI/bge-small-en-v1.5`, `bge-base-en-v1.5`, `bge-m3`), `sentence-transformers/all-MiniLM-L6-v2`, or a local folder exported with `optimum-cli export onnx`. Changing this invalidates all existing vectors across every source; see [Config drift detection](#config-drift-detection). |
+| `tools.profile` | `core`, `standard` (default) or `full`: which MCP tools `lynx serve` registers. `tools.include` / `tools.exclude` add or remove single tools by name. See [Tool profiles](#tool-profiles). |
 | `search.default_top_k` | Default number of chunks the `search` tool returns when `top_k` is not passed. |
 | `search.mode` | `"hybrid"` (default), `"dense"`, or `"sparse"`. See [Hybrid retrieval](#hybrid-retrieval). |
 | `search.rrf_k` | Reciprocal Rank Fusion constant (default `60`). |
@@ -1643,6 +1644,39 @@ across every source, RRF-fused). The graph layer adds a single
 has `graph: { enabled: true }`. Three sources with graph enabled expose
 the same compact tool list as one: the client picks the right `source` from
 the handshake instructions, not from a wall of per-source tool names.
+
+### Tool profiles
+
+Every tool definition is part of your client's context on every turn, so
+the size of the tool list is a cost you pay before the first search. Lynx
+layers the tools in three profiles:
+
+| Profile | Tools | Size of `tools/list` |
+|---|---|---|
+| `core` | search, describe_symbol, find_usages, impact, feedback | 4.8k characters, about 1,200 tokens |
+| `standard` (default) | core + find_definition, deep_search, graph_query, repo_overview, search_diff | 10.7k characters, about 2,700 tokens |
+| `full` | all 17 | 15.3k characters, about 3,800 tokens |
+
+Measured with two codebase sources, graph and git enabled. Before the
+profiles existed the list weighed 30.7k characters, about 7,700 tokens.
+
+Pick a profile in `config.json`, on the command line, or in the
+environment. The command line wins, then the variable, then the file:
+
+```json
+"tools": { "profile": "core", "include": ["graph_query"], "exclude": [] }
+```
+
+```bash
+lynx serve --profile full
+LYNX_TOOL_PROFILE=core lynx serve
+```
+
+A profile is a ceiling, not a promise: `graph_query` still needs a source
+with the graph layer, `search_diff` a source with git integration. The
+handshake instructions and the `lynx://guide` resource name only the
+tools the session has, and tell the model which profile hid the rest, so
+it can ask you for `--profile full` instead of guessing.
 
 ### Search tools (always on)
 

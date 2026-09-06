@@ -198,7 +198,10 @@ def _build_manager(config_path):
 
 def _cmd_serve(args) -> int:
     from .server import run_server
-    run_server(config_path=getattr(args, "config", None))
+    run_server(
+        config_path=getattr(args, "config", None),
+        profile=getattr(args, "profile", None),
+    )
     return 0
 
 

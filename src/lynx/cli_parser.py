@@ -205,6 +205,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sp_serve = sub.add_parser("serve", help="Run the MCP server (default)")
     sp_serve.add_argument("--config", "-c", metavar="PATH")
+    sp_serve.add_argument(
+        "--profile", choices=["core", "standard", "full"],
+        help="Which tools to expose: core (5), standard (10, default) or full "
+             "(17). Overrides LYNX_TOOL_PROFILE and tools.profile in config.json.",
+    )
 
     sp_build = sub.add_parser("build", help="Force a full rebuild of a source's index")
     sp_build.add_argument("--config", "-c", metavar="PATH")
