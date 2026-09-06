@@ -128,11 +128,11 @@ Open as many sessions on one index as you like: two editor windows, an editor pl
 Behind a firewall or on an air-gapped machine? The model can come from a mirror, from this repo's GitHub Releases (the automatic fallback), or from an archive you carry over; see [Restricted networks](docs/GUIDE.md#restricted-networks-and-air-gapped-machines) in the guide.
 
 <p align="center">
-  <a href="docs/GUIDE.md#lynxmanager--guided-setup-web-ui-diagnostics-new-in-v09">
+  <a href="docs/GUIDE.md#lynxmanager-guided-setup-web-ui-diagnostics-new-in-v09">
     <img src="https://raw.githubusercontent.com/lorenzo-cambiaghi/LynxMCP/main/readmeData/LynxManagerV.gif" alt="LynxManager: guided setup, query playground, and diagnostics in the browser" width="820">
   </a>
   <br>
-  <sub><b><a href="docs/GUIDE.md#lynxmanager--guided-setup-web-ui-diagnostics-new-in-v09">LynxManager</a></b>: guided setup, query playground &amp; diagnostics, all in the browser. <a href="docs/GUIDE.md#lynxmanager--guided-setup-web-ui-diagnostics-new-in-v09">Full walkthrough</a></sub>
+  <sub><b><a href="docs/GUIDE.md#lynxmanager-guided-setup-web-ui-diagnostics-new-in-v09">LynxManager</a></b>: guided setup, query playground &amp; diagnostics, all in the browser. <a href="docs/GUIDE.md#lynxmanager-guided-setup-web-ui-diagnostics-new-in-v09">Full walkthrough</a></sub>
 </p>
 
 ## Benchmarks (reproducible)
@@ -206,7 +206,7 @@ Search and the code graph are served as NDJSON over a local HTTP API (`/api/v1`)
 | | |
 |---|---|
 | [Full guide](docs/GUIDE.md) | Configuration, all source types (codebase / webdoc / PDF), retrieval internals, tool profiles, troubleshooting |
-| [Manager UI](docs/GUIDE.md#lynxmanager--guided-setup-web-ui-diagnostics-new-in-v09) | Guided setup, playground, diagnostics |
+| [Manager UI](docs/GUIDE.md#lynxmanager-guided-setup-web-ui-diagnostics-new-in-v09) | Guided setup, playground, diagnostics |
 | [Outline mode](docs/OUTLINE.md) | Signatures instead of bodies: when to use it, measured data, chart |
 | [Coral](docs/CORAL.md) / [DuckDB](docs/DUCKDB.md) / [Steampipe](integrations/steampipe/steampipe-plugin-lynx/) | Code search and the code graph as SQL tables |
 | [MCP recipes](docs/MCP_RECIPES.md) | Combining Lynx with GitHub / Sentry / Jira MCP servers |
