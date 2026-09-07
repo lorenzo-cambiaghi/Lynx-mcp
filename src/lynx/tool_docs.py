@@ -32,16 +32,20 @@ TOOL_DESCRIPTIONS = {
         "Slower than `search`; do not start here."
     ),
     "graph_query": (
-        "Query the code knowledge graph (calls, inheritance, imports). Pass an "
-        "identifier, matched as a case-insensitive substring. operation: callers | "
-        "callees | subclasses | superclasses | imports (of a file) | neighbors "
-        "(relation_filter, depth) | shortest_path (symbol to target, max_hops) | "
-        "overview (hubs and communities, top_n) | surprising_connections (bridge "
-        "edges, top_n) | status (counts and freshness). Results carry file:line."
+        "Raw access to the code knowledge graph (calls, inheritance, imports), "
+        "for the questions the dedicated tools do not cover: find_usages, impact "
+        "and describe_symbol answer the common ones with the results already "
+        "shaped. operation: callers | callees | subclasses | superclasses | "
+        "imports | neighbors | shortest_path | overview | surprising_connections "
+        "| status. `symbol` is matched as a case-insensitive substring; results "
+        "carry file:line."
     ),
     "find_definition": (
-        "Where a symbol is defined. AST-precise when the graph layer is on, BM25 "
-        "fallback otherwise; each hit says which."
+        "Jump to where a symbol is defined, when you already know its name. "
+        "AST-precise when the graph layer is on, BM25 fallback otherwise; each "
+        "hit says which. Use `search` instead when you can only describe what "
+        "the code does, and describe_symbol when you also want the callers and "
+        "the tests in the same call."
     ),
     "find_usages": (
         "Every use of a symbol: calls (from the graph when on) plus textual "
@@ -49,9 +53,12 @@ TOOL_DESCRIPTIONS = {
         "Answers 'who uses X'."
     ),
     "find_tests_for": (
-        "Tests that mention a symbol, found under conventional test paths "
-        "(tests/, spec/, __tests__/, *_test.*, *.spec.*, *Test.cs, *Tests.cs). "
-        "Pass test_path_pattern for another layout."
+        "List the tests that mention a symbol, searched under conventional test "
+        "paths (tests/, spec/, __tests__/, *_test.*, *.spec.*, *Test.cs, "
+        "*Tests.cs); test_path_pattern replaces them for another layout. Use it "
+        "when the tests are all you want, before or after a change; "
+        "describe_symbol returns the same tests bundled with the definition and "
+        "the callers, and impact returns them for a whole blast radius."
     ),
     "find_similar": (
         "Code semantically similar to a snippet, dense search only. Use before "
@@ -65,9 +72,13 @@ TOOL_DESCRIPTIONS = {
         "and tests always work."
     ),
     "impact": (
-        "Blast radius of changing a symbol: everything that reaches it transitively "
-        "through the call graph, with hop distance, plus the tests to re-run. "
-        "Transitive callers need the graph layer."
+        "Answer 'what breaks if I change this': everything that reaches a symbol "
+        "transitively through the call graph, with hop distance, plus the tests "
+        "to re-run. Use find_usages for the direct, one-hop answer; use this "
+        "before a risky edit, when the indirect callers are the point. "
+        "max_depth trades reach for noise: 2 stays close to the change, 6 on a "
+        "hub symbol can return most of the codebase. Transitive callers need the "
+        "graph layer."
     ),
     "module_summary": (
         "A file as a unit: the symbols it defines, what it imports, and which files "
@@ -95,7 +106,11 @@ TOOL_DESCRIPTIONS = {
         "filters."
     ),
     "list_sources": (
-        "Configured sources with type, path, chunk count and drift status."
+        "List which sources exist and what each one is: name, type, path, chunk "
+        "count and drift flag. Read from config and metadata, no index opened. "
+        "Call it first when you do not know the source names a `source` argument "
+        "expects; for how fresh one index is, and whether to rebuild it, use "
+        "get_rag_status instead."
     ),
     "get_rag_status": (
         "Index state for one or all sources: freshness, chunk count, last update, "
