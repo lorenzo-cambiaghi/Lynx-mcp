@@ -1664,9 +1664,9 @@ layers the tools in three profiles:
 
 | Profile | Tools | Size of `tools/list` |
 |---|---|---|
-| `core` | search, describe_symbol, find_usages, impact, feedback | 5.0k characters, about 1,250 tokens |
-| `standard` (default) | core + find_definition, deep_search, graph_query, repo_overview, search_diff | 11.1k characters, about 2,800 tokens |
-| `full` | all 17 | 16.2k characters, about 4,050 tokens |
+| `core` | search, describe_symbol, find_usages, impact, feedback | 5.2k characters, about 1,300 tokens |
+| `standard` (default) | core + find_definition, deep_search, graph_query, repo_overview, search_diff | 11.3k characters, about 2,800 tokens |
+| `full` | all 17 | 16.5k characters, about 4,150 tokens |
 
 Measured with two codebase sources, graph and git enabled. Before the
 profiles existed the list weighed 30.7k characters, about 7,700 tokens.

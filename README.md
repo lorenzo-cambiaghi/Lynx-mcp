@@ -60,7 +60,7 @@ The server answers the MCP handshake in about a second and opens the indexes in 
 
 ## The tools your AI gets
 
-The tool set is fixed: it does not grow with the number of sources. It is also layered, because every tool definition rides in your client's context on every turn. Three profiles: `core` (5 tools, about 1,250 tokens of definitions), `standard` (10 tools, about 2,800 tokens, the default) and `full` (17 tools, about 4,050 tokens). Set `tools.profile` in config.json or pass `lynx serve --profile full`; `tools.include` adds a single tool to a profile. Tools take a `source` argument where relevant.
+The tool set is fixed: it does not grow with the number of sources. It is also layered, because every tool definition rides in your client's context on every turn. Three profiles: `core` (5 tools, about 1,300 tokens of definitions), `standard` (10 tools, about 2,800 tokens, the default) and `full` (17 tools, about 4,150 tokens). Set `tools.profile` in config.json or pass `lynx serve --profile full`; `tools.include` adds a single tool to a profile. Tools take a `source` argument where relevant.
 
 | Tool | Profile | What it answers |
 |------|---------|-----------------|
@@ -174,7 +174,7 @@ python benchmarks/run_benchmark.py --tasks benchmarks/tasks_guava.json \
 
 ## What it costs, in tokens and in money
 
-Per retrieval, the saving is the measured delta above: 2,400 to 5,100 fewer tokens to get the answer into context. Per session, the tool definitions cost 1,250 tokens (`core`), 2,800 (`standard`) or 4,050 (`full`), so a session has paid for its tool list after the first or second retrieval. `outline` triage cuts the search step by another 2.4x on broad queries ([measured](docs/OUTLINE.md)).
+Per retrieval, the saving is the measured delta above: 2,400 to 5,100 fewer tokens to get the answer into context. Per session, the tool definitions cost 1,300 tokens (`core`), 2,800 (`standard`) or 4,150 (`full`), so a session has paid for its tool list after the first or second retrieval. `outline` triage cuts the search step by another 2.4x on broad queries ([measured](docs/OUTLINE.md)).
 
 In money, for 25 engineers making 60 retrievals a day (31,500 a month), the yearly API bill Lynx removes, as a range across the three codebases:
 

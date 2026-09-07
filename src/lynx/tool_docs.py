@@ -50,7 +50,8 @@ TOOL_DESCRIPTIONS = {
     "find_usages": (
         "Every use of a symbol: calls (from the graph when on) plus textual "
         "references (generics, decorators, imports, docs), definition excluded. "
-        "Answers 'who uses X'."
+        "Answers 'who uses X' at one hop; `impact` walks the chain further and "
+        "adds the tests."
     ),
     "find_tests_for": (
         "List the tests that mention a symbol, searched under conventional test "
@@ -61,15 +62,17 @@ TOOL_DESCRIPTIONS = {
         "the callers, and impact returns them for a whole blast radius."
     ),
     "find_similar": (
-        "Code semantically similar to a snippet, dense search only. Use before "
-        "writing a function to check whether something like it already exists. "
-        "Snippets are cut at 2000 chars."
+        "Code semantically similar to a snippet you already have, dense search "
+        "only: use it before writing a function, to check whether something like "
+        "it exists. `search` is the one to call when you can describe the need in "
+        "words instead. Snippets are cut at 2000 chars."
     ),
     "describe_symbol": (
         "One-shot context for a symbol: definition, who calls it, what it calls, "
         "and its tests, in a single call. The fastest way to understand a function "
-        "or class before changing it. Call data needs the graph layer; definition "
-        "and tests always work."
+        "or class before changing it, and cheaper than find_definition, find_usages "
+        "and find_tests_for one after the other. Call data needs the graph layer; "
+        "definition and tests always work."
     ),
     "impact": (
         "Answer 'what breaks if I change this': everything that reaches a symbol "
@@ -83,7 +86,8 @@ TOOL_DESCRIPTIONS = {
     "module_summary": (
         "A file as a unit: the symbols it defines, what it imports, and which files "
         "depend on it (via the call graph). Read it before editing a file you don't "
-        "know."
+        "know; repo_overview does the same for the whole repository, and "
+        "describe_symbol for one symbol inside the file."
     ),
     "repo_overview": (
         "Orientation for an unfamiliar codebase: languages by file count, "
