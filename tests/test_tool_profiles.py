@@ -207,9 +207,11 @@ def test_config_tools_block(tmp_path):
 # ---------------------------------------------------------------------------
 
 # Wire size of tools/list for a codebase source with graph + git (every tool
-# registered), after `apply_tool_profile`. Measured 2026-09-06: 4,783 / 10,704 /
-# 15,279 characters; the previous descriptions weighed about 31,000 at full. Raise a ceiling only with a
-# reason written next to it.
+# registered), after `apply_tool_profile`. Measured 2026-09-07: 5,026 / 11,145 /
+# 16,180 characters, after the usage guidelines went in; 4,783 / 10,704 / 15,279
+# the day before, and about 31,000 at full before the profiles existed. `full`
+# now has ~600 characters of headroom. Raise a ceiling only with a reason
+# written next to it.
 _WIRE_BUDGET = {"core": 5_300, "standard": 11_800, "full": 16_800}
 _MAX_DESCRIPTION = 450
 
